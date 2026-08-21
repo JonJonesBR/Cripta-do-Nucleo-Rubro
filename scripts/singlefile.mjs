@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const DIST = join(ROOT, "dist");
-const OUT = join(ROOT, "CRIPTA DO NÚCLEO RUBRO (jogo único).html");
+const OUT = join(ROOT, "release", "CRIPTA DO NÚCLEO RUBRO (jogo único).html");
 
 const html = readFileSync(join(DIST, "index.html"), "utf8");
 const assets = readdirSync(join(DIST, "assets"));
