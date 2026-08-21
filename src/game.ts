@@ -18,6 +18,7 @@ import {
 } from "./core/rng";
 import { checksum, migrateRun } from "./core/save";
 import { findPathBFSGrid } from "./core/pathfinding";
+import { attackRoll, applyCrit, guardedDamage, specialDamage, summonDamage, trapDamage, xpForLevel } from "./core/combat";
 
 "use strict";
 
@@ -800,7 +801,7 @@ function gainMonsterXp(monster, amount) {
   while (monster.xp >= monster.nextXp) {
     monster.xp -= monster.nextXp;
     monster.level++;
-    monster.nextXp = Math.floor(monster.nextXp * CONFIG.XP_GROWTH_MULT + CONFIG.XP_GROWTH_ADD);
+    monster.nextXp = xpForLevel(monster.level);
     monster.maxHp += 5;
     monster.hp = monster.maxHp;
     monster.atk += 2;
@@ -822,7 +823,7 @@ function gainXp(player, amount) {
   while (player.xp >= player.nextXp) {
     player.xp -= player.nextXp;
     player.level++;
-    player.nextXp = Math.floor(player.nextXp * CONFIG.XP_GROWTH_MULT + CONFIG.XP_GROWTH_ADD);
+    player.nextXp = xpForLevel(player.level);
     const hpBonus = { warrior: CONFIG.LEVEL_UP_HP_WARRIOR, rogue: CONFIG.LEVEL_UP_HP_ROGUE, mage: CONFIG.LEVEL_UP_HP_MAGE, beastmaster: CONFIG.LEVEL_UP_HP_BEASTMASTER, witch: CONFIG.LEVEL_UP_HP_WITCH }[player.classKey] || 6;
     player.maxHp += hpBonus;
     player.hp = player.maxHp;
@@ -3822,7 +3823,7 @@ function updateActionEnemy() {
         actionFireBolt();
       } else if (d <= CONFIG.ACTION_ENEMY_RANGE + 14) {
         if (actionEnemySpecial()) { st.eAttackCd = actionEnemyAttackCd(); return; }
-        let dmg = Math.max(1, currentEnemy.atk + rand(0, 2) - Math.floor(player.def / 2));
+        let dmg = attackRoll(currentEnemy.atk, player.def);
         if (st.iframes > 0) {
           const perfect = st.dashTicks > 0 || st.iframes >= CONFIG.ACTION_PERFECT_DODGE_IFRAMES_BONUS;
           if (perfect) {
@@ -3952,7 +3953,7 @@ function actionFireBolt() {
     x: st.ex, y: st.ey,
     vx: (dx / len) * speed,
     vy: (dy / len) * speed,
-    dmg: Math.max(1, Math.round(currentEnemy.atk * 0.85) + rand(0, 1) - Math.floor(player.def / 2)),
+    dmg: attackRoll(currentEnemy.atk, player.def, { atkMult: 0.85, variance: 1, roundAtk: true }),
     life: 80,
     color: currentEnemy.color
   });
@@ -3967,7 +3968,7 @@ function actionEnemySpecial() {
   const st = actionState;
   const stx = st.px, sty = st.py;
   if (kind === "wraith" && chance(0.25)) {
-    const drain = Math.max(1, Math.floor(currentEnemy.atk * 0.7) + rand(0, 2) - Math.floor(player.def / 2));
+    const drain = attackRoll(currentEnemy.atk, player.def, { atkMult: 0.7, variance: 2 });
     player.hp = Math.max(0, player.hp - drain);
     const heal = Math.min(currentEnemy.maxHp - currentEnemy.hp, drain);
     currentEnemy.hp += heal;
@@ -3979,7 +3980,7 @@ function actionEnemySpecial() {
     return true;
   }
   if (kind === "golem" && chance(0.2)) {
-    const stomp = Math.max(1, Math.floor(currentEnemy.atk * 1.3) - Math.floor(player.def / 2));
+    const stomp = attackRoll(currentEnemy.atk, player.def, { atkMult: 1.3, variance: 0 });
     player.hp = Math.max(0, player.hp - stomp);
     spawnFloatingText(stx, sty - 18, `-${stomp}`, COLORS.orange);
     burst(stx, sty, COLORS.orange, 18, "spark");
@@ -4087,9 +4088,9 @@ function actionPlayerAttack() {
     const lunge = CONFIG.ACTION_ATK_LUNGE;
     st.px = clampActionX(st.px + (st.facing === "right" ? lunge : st.facing === "left" ? -lunge : 0));
     st.py = clampActionY(st.py + (st.facing === "down" ? lunge : st.facing === "up" ? -lunge : 0));
-    let dmg = Math.max(1, player.atk + rand(0, 2) - Math.floor(currentEnemy.def / 2));
-    const critical = Math.random() < (player.crit || 0.05);
-    if (critical) dmg = Math.floor(dmg * CONFIG.NORMAL_CRIT_MULT);
+    let dmg = attackRoll(player.atk, currentEnemy.def);
+    const critical = chance(player.crit || 0.05);
+    if (critical) dmg = applyCrit(dmg, 1, CONFIG.NORMAL_CRIT_MULT);
     dmg = Math.floor(dmg * (CONFIG.ACTION_COMBO_DMG_MULT[step] || 1));
     const aElem = elementMultiplier(getPlayerElement(), currentEnemy);
     if (aElem !== 1) dmg = Math.max(1, Math.floor(dmg * aElem));
@@ -4188,7 +4189,7 @@ function actionSurge() {
   st.atkAnim = 12;
   if (Math.abs(st.ex - st.px) > Math.abs(st.ey - st.py)) st.facing = st.ex > st.px ? "right" : "left";
   else st.facing = st.ey > st.py ? "down" : "up";
-  let dmg = Math.max(1, player.atk + rand(2, 6) - Math.floor(currentEnemy.def / 2));
+  let dmg = attackRoll(player.atk, currentEnemy.def, { variance: 4, min: 2 });
   dmg = Math.floor(dmg * 1.6);
   player.momentum = 0;
   playSfx("boom");
@@ -4219,9 +4220,9 @@ function actionSpecialAttack() {
   else st.facing = st.ey > st.py ? "down" : "up";
   playSfx("hit");
   let dmg = 0, critical = false, message = player.special || "Habilidade";
+  const specStats = { classKey: player.classKey, atk: player.atk, mag: player.mag, level: player.level, def: currentEnemy.def, skillAtkMult: player.skillAtkMult || 1.3 };
   if (player.activeSlot > 0) {
-    const mult = player.skillAtkMult || 1.3;
-    dmg = Math.max(2, Math.round(player.atk * mult + player.level * 0.8) - Math.floor(currentEnemy.def / 2));
+    dmg = specialDamage({ ...specStats, monsterSkill: true });
     if (player.skillHealRatio > 0) {
       const heal = Math.min(player.maxHp - player.hp, Math.floor(dmg * player.skillHealRatio));
       player.hp += heal;
@@ -4229,27 +4230,27 @@ function actionSpecialAttack() {
       spawnFloatingText(st.px, st.py - 24, `+${heal}`, COLORS.green);
     }
   } else if (player.classKey === "warrior") {
-    dmg = Math.max(1, Math.floor(player.atk * 0.7) - Math.floor(currentEnemy.def / 2));
+    dmg = specialDamage(specStats);
     message = "Guarda de Ferro!";
     if (chance(CONFIG.IRON_GUARD_STUN_CHANCE)) addStatus(currentEnemy, "stun", 1);
   } else if (player.classKey === "rogue") {
     critical = chance(CONFIG.ROGUE_SPECIAL_CRIT_CHANCE);
-    dmg = Math.max(1, player.atk + rand(2, 5) - currentEnemy.def);
-    if (critical) dmg = Math.floor(dmg * CONFIG.ROGUE_SPECIAL_CRIT_MULT);
+    dmg = specialDamage(specStats);
+    if (critical) dmg = applyCrit(dmg, 1, CONFIG.ROGUE_SPECIAL_CRIT_MULT);
     message = "Punhal Sombrio!";
     addStatus(currentEnemy, "bleed", 3, 3 + Math.floor(player.level / 2));
   } else if (player.classKey === "mage") {
-    dmg = Math.max(3, player.mag + rand(5, 10) + player.level * 2 - Math.floor(currentEnemy.def / 2));
+    dmg = specialDamage(specStats);
     message = "Raio Arcano!";
     addStatus(currentEnemy, "burn", 2, Math.max(3, Math.floor(player.mag * 0.45)));
   } else if (player.classKey === "beastmaster") {
-    dmg = Math.max(2, player.atk + rand(1, 3) + Math.floor(player.level / 2) - currentEnemy.def);
-    const beastDmg = Math.max(2, rand(CONFIG.BEAST_DAMAGE_MIN, CONFIG.BEAST_DAMAGE_MAX) + Math.floor(player.level * 0.8));
+    dmg = specialDamage(specStats);
+    const beastDmg = summonDamage(player.level);
     dmg += beastDmg;
     message = `Chamado da Selva! Seu lobo ataca por ${beastDmg}!`;
     if (chance(CONFIG.BEAST_BLEED_CHANCE)) addStatus(currentEnemy, "bleed", 2, Math.max(2, Math.floor(player.level * 0.5)));
   } else if (player.classKey === "witch") {
-    dmg = Math.max(2, player.mag + rand(3, 7) + Math.floor(player.level * 1.2) - Math.floor(currentEnemy.def / 3));
+    dmg = specialDamage(specStats);
     message = "Olho do Caos!";
     addStatus(currentEnemy, "burn", 3, Math.max(3, Math.floor(player.mag * 0.4)));
     player.hp = Math.min(player.maxHp, player.hp + Math.floor(dmg * CONFIG.WITCH_HEAL_RATIO));
@@ -4794,7 +4795,7 @@ if (item.type === "trap") {
       saveCurrentRun();
       return;
     }
-    const dmg = effectiveIncomingDamage(Math.max(CONFIG.TRAP_DMG_MIN_AFTER_DEF, rand(CONFIG.TRAP_DMG_MIN, CONFIG.TRAP_DMG_MAX) - Math.floor(player.def / CONFIG.TRAP_DEF_DIVISOR)));
+    const dmg = effectiveIncomingDamage(trapDamage(player.def));
     player.hp = Math.max(1, player.hp - dmg);
     player.hitPulse = 12;
     addLog(`Armadilha de lâminas! Você sofreu ${dmg}.`, "red");
@@ -5326,12 +5327,12 @@ function commitAttackSwing(useSpecial, timingFrac = -1) {
   }
 
   let dmg = 0, message = "", critical = false;
+  const specStats = { classKey: player.classKey, atk: player.atk, mag: player.mag, level: player.level, def: currentEnemy.def, skillAtkMult: player.skillAtkMult || 1.3 };
 
   if (useSpecial) {
     player.specialCd = player.specialMaxCd;
     if (player.activeSlot > 0) {
-      const mult = player.skillAtkMult || 1.3;
-      dmg = Math.max(2, Math.round(player.atk * mult + player.level * 0.8) - Math.floor(currentEnemy.def / 2));
+      dmg = specialDamage({ ...specStats, monsterSkill: true });
       message = `${player.special}! ${currentEnemy.name} é atingido!`;
       if (player.skillHealRatio > 0) {
         const heal = Math.min(player.maxHp - player.hp, Math.floor(dmg * player.skillHealRatio));
@@ -5341,27 +5342,27 @@ function commitAttackSwing(useSpecial, timingFrac = -1) {
 } else if (player.classKey === "warrior") {
       player.guarding = true;
       player.ironGuardThorn = 1;
-      dmg = Math.max(1, Math.floor(player.atk * 0.7) - Math.floor(currentEnemy.def / 2));
+      dmg = specialDamage(specStats);
       message = "Guarda de Ferro! Você ergue o escudo e contra-ataca.";
       if (chance(CONFIG.IRON_GUARD_STUN_CHANCE)) { addStatus(currentEnemy, "stun", 1); message += " O inimigo ficou atordoado."; }
     } else if (player.classKey === "rogue") {
       critical = chance(CONFIG.ROGUE_SPECIAL_CRIT_CHANCE);
-      dmg = Math.max(1, player.atk + rand(2, 5) - currentEnemy.def);
-      if (critical) dmg = Math.floor(dmg * CONFIG.ROGUE_SPECIAL_CRIT_MULT);
+      dmg = specialDamage(specStats);
+      if (critical) dmg = applyCrit(dmg, 1, CONFIG.ROGUE_SPECIAL_CRIT_MULT);
       message = critical ? "Punhal Sombrio! Acerto crítico nas costelas da sombra!" : "Punhal Sombrio! O inimigo quase escapou.";
       addStatus(currentEnemy, "bleed", 3, 3 + Math.floor(player.level / 2));
     } else if (player.classKey === "mage") {
-      dmg = Math.max(3, player.mag + rand(5, 10) + player.level * 2 - Math.floor(currentEnemy.def / 2));
+      dmg = specialDamage(specStats);
       message = "Raio Arcano! A masmorra acende em azul impossível.";
       addStatus(currentEnemy, "burn", 2, Math.max(3, Math.floor(player.mag * 0.45)));
     } else if (player.classKey === "beastmaster") {
-      dmg = Math.max(2, player.atk + rand(1, 3) + Math.floor(player.level / 2) - currentEnemy.def);
-      const beastDmg = Math.max(2, rand(CONFIG.BEAST_DAMAGE_MIN, CONFIG.BEAST_DAMAGE_MAX) + Math.floor(player.level * 0.8));
+      dmg = specialDamage(specStats);
+      const beastDmg = summonDamage(player.level);
       message = `Chamado da Selva! Seu lobo espectral ataca por ${beastDmg} e você golpeia por ${dmg}!`;
       dmg += beastDmg;
       if (chance(CONFIG.BEAST_BLEED_CHANCE)) { addStatus(currentEnemy, "bleed", 2, Math.max(2, Math.floor(player.level * 0.5))); message += " O inimigo sangra."; }
     } else if (player.classKey === "witch") {
-      dmg = Math.max(2, player.mag + rand(3, 7) + Math.floor(player.level * 1.2) - Math.floor(currentEnemy.def / 3));
+      dmg = specialDamage(specStats);
       message = "Olho do Caos! Chamas roxas consomem o inimigo!";
       addStatus(currentEnemy, "burn", 3, Math.max(3, Math.floor(player.mag * 0.4)));
       player.hp = Math.min(player.maxHp, player.hp + Math.floor(dmg * CONFIG.WITCH_HEAL_RATIO));
@@ -5369,7 +5370,7 @@ function commitAttackSwing(useSpecial, timingFrac = -1) {
     }
   } else {
     critical = chance(player.crit);
-    dmg = Math.max(1, player.atk + rand(0, 4) - currentEnemy.def);
+    dmg = attackRoll(player.atk, currentEnemy.def, { variance: 4, defDiv: 1 });
     if (perfect) {
       dmg = Math.floor(dmg * CONFIG.ATTACK_TIMING_PERFECT_MULT);
       critical = true;
@@ -5377,9 +5378,9 @@ function commitAttackSwing(useSpecial, timingFrac = -1) {
     } else if (good) {
       dmg = Math.floor(dmg * CONFIG.ATTACK_TIMING_GOOD_MULT);
       message = "Bom timing!";
-      if (critical) dmg = Math.floor(dmg * CONFIG.NORMAL_CRIT_MULT);
+      if (critical) dmg = applyCrit(dmg, 1, CONFIG.NORMAL_CRIT_MULT);
     } else {
-      if (critical) dmg = Math.floor(dmg * CONFIG.NORMAL_CRIT_MULT);
+      if (critical) dmg = applyCrit(dmg, 1, CONFIG.NORMAL_CRIT_MULT);
       message = critical ? "Ataque crítico!" : "Você ataca.";
     }
     if (critical && player.classKey === "rogue") addStatus(currentEnemy, "bleed", 3, 3 + Math.floor(player.level / 2));
@@ -5585,7 +5586,7 @@ function applyPendingDamage(blocked, blockMilliseconds) {
 if (blocked) {
     const perfect = blockMilliseconds != null && blockMilliseconds < CONFIG.RIPOSTE_WINDOW_FRACTION;
     player.stamina = Math.min(player.maxStamina, player.stamina + CONFIG.STAMINA_REGEN_PER_TURN + (perfect ? CONFIG.STAMINA_PERFECT_BLOCK_BONUS : 0));
-    dmg = Math.max(1, Math.floor(dmg / CONFIG.PERFECT_BLOCK_DIVISOR));
+    dmg = guardedDamage(dmg, false, true); // divisor aplicado a todo golpe bloqueado
     player.momentum = Math.min(CONFIG.MOMENTUM_MAX, player.momentum + (perfect ? CONFIG.MOMENTUM_GAIN_PERFECT : CONFIG.MOMENTUM_GAIN_BLOCK));
     playSfx("block");
     if (perfect) {
@@ -5594,7 +5595,7 @@ if (blocked) {
       spawnEffect("spark", sxFor(player.x), syFor(player.y), "", COLORS.gold, { life: 18, size: 3 });
       burst(sxFor(player.x), syFor(player.y), COLORS.gold, CONFIG.SPECIAL_PARTICLE_COUNT, "spark");
       if (currentEnemy) {
-        const rip = Math.max(1, Math.floor(player.atk * CONFIG.RIPOSTE_POWER) - Math.floor(currentEnemy.def / 2));
+        const rip = attackRoll(player.atk, currentEnemy.def, { atkMult: CONFIG.RIPOSTE_POWER, variance: 0 });
         currentEnemy.hp = Math.max(0, currentEnemy.hp - rip);
         currentEnemy.hitPulse = 8;
         spawnFloatingText(sxFor(currentEnemy.x), syFor(currentEnemy.y), `-${rip}`, COLORS.gold);
@@ -5695,7 +5696,7 @@ function doBossPattern() {
     burst(ex, ey, COLORS.orange, 14, "spark");
     playSfx("boom");
     if (boss.phase2) {
-      const dmg = effectiveIncomingDamage(Math.max(1, Math.round(charged.power * 0.7) - Math.floor(player.def / 2)));
+      const dmg = effectiveIncomingDamage(attackRoll(charged.power, player.def, { atkMult: 0.7, variance: 0, roundAtk: true }));
       player.hp = Math.max(0, player.hp - dmg);
       player.hitPulse = 10;
       addStatus(player, "burn", 2, Math.max(2, Math.floor(player.maxHp * 0.04)));
@@ -5715,14 +5716,14 @@ function doBossPattern() {
 
   if (!boss.phase2) {
     if (p === 0) {
-      boss.intent = { power: Math.max(1, Math.round(boss.atk * CONFIG.TELEGRAPH_POWER_MULT)) };
+      boss.intent = { power: attackRoll(boss.atk, 0, { atkMult: CONFIG.TELEGRAPH_POWER_MULT, variance: 0, roundAtk: true }) };
       addLog(`${boss.name} ergue o machado, concentrando energia rubra...`, "orange");
       showToast("PREPARAÇÃO!", CONFIG.TOAST_MS);
       burst(ex, ey, COLORS.orange, 8, "spark");
       playSfx("ominous");
       finishEnemyTurn();
     } else if (p === 1) {
-const drain = effectiveIncomingDamage(Math.max(1, Math.floor(boss.atk * 0.8) + rand(0, 3) - Math.floor(player.def / 2)));
+const drain = effectiveIncomingDamage(attackRoll(boss.atk, player.def, { atkMult: 0.8, variance: 3 }));
       player.hp = Math.max(0, player.hp - drain);
       player.hitPulse = 10;
       const heal = Math.min(boss.maxHp - boss.hp, drain);
@@ -5734,7 +5735,7 @@ const drain = effectiveIncomingDamage(Math.max(1, Math.floor(boss.atk * 0.8) + r
       playSfx("hurt");
       finishEnemyTurn();
     } else {
-      const dmg = Math.max(1, boss.atk + rand(0, 4) - player.def);
+      const dmg = attackRoll(boss.atk, player.def, { variance: 4, defDiv: 1 });
       openBlockWindow(dmg, `${boss.name} desfere uma rajada de golpes! Defenda-se apertando A!`);
     }
     return;
@@ -5742,7 +5743,7 @@ const drain = effectiveIncomingDamage(Math.max(1, Math.floor(boss.atk * 0.8) + r
 
   // FASE 2 — mais cruel e imprevisível.
   if (p === 0) {
-    const dmg = effectiveIncomingDamage(Math.max(1, Math.floor(boss.atk * 0.9) - player.def));
+    const dmg = effectiveIncomingDamage(attackRoll(boss.atk, player.def, { atkMult: 0.9, variance: 0, defDiv: 1 }));
     player.hp = Math.max(0, player.hp - dmg);
     player.hitPulse = 10;
     addStatus(player, "burn", 2, Math.max(2, Math.floor(player.maxHp * 0.04)));
@@ -5766,7 +5767,7 @@ const drain = effectiveIncomingDamage(Math.max(1, Math.floor(boss.atk * 0.8) + r
       addLog(`${boss.name} pulsa com energia rubra e anula seu Momentum e Combo!`, "purple");
       spawnFloatingText(x, y, "MOMENTUM ZERADO", COLORS.purple);
     } else {
-      const dmg = effectiveIncomingDamage(Math.max(1, Math.floor(boss.atk * 0.7) - player.def));
+      const dmg = effectiveIncomingDamage(attackRoll(boss.atk, player.def, { atkMult: 0.7, variance: 0, defDiv: 1 }));
       player.hp = Math.max(0, player.hp - dmg);
       player.hitPulse = 10;
       addLog(`${boss.name} avança sem aviso! -${dmg} PV.`, "red");
@@ -5776,7 +5777,7 @@ const drain = effectiveIncomingDamage(Math.max(1, Math.floor(boss.atk * 0.8) + r
     playSfx("ominous");
     finishEnemyTurn();
   } else {
-    const drain = Math.max(1, Math.floor(boss.atk * 0.8) + rand(0, 3) - Math.floor(player.def / 2));
+    const drain = attackRoll(boss.atk, player.def, { atkMult: 0.8, variance: 3 });
     player.hp = Math.max(0, player.hp - drain);
     player.hitPulse = 10;
     const heal = Math.min(boss.maxHp - boss.hp, drain);
@@ -5918,7 +5919,7 @@ if (intent.type === "special" && doEnemySpecial()) return;
 
   // Or the enemy winds up, giving you a free turn to react.
   if (intent.type === "charge" && currentEnemy.telegraphCooldown === 0) {
-    currentEnemy.intent = { power: Math.max(1, Math.round(currentEnemy.atk * CONFIG.TELEGRAPH_POWER_MULT)) };
+    currentEnemy.intent = { power: attackRoll(currentEnemy.atk, 0, { atkMult: CONFIG.TELEGRAPH_POWER_MULT, variance: 0, roundAtk: true }) };
     addLog(`${currentEnemy.name} se prepara para um golpe devastador...`, "orange");
     showToast("PREPARAÇÃO!", CONFIG.TOAST_MS);
     burst(sxFor(currentEnemy.x), syFor(currentEnemy.y), COLORS.orange, 6, "spark");
@@ -5934,10 +5935,10 @@ if (intent.type === "special" && doEnemySpecial()) return;
     return;
   }
 
-  let dmg = Math.max(1, currentEnemy.atk + (synergy ? synergy.auraAtk : 0) + rand(0, 4) - player.def);
-  if (player.guarding) dmg = Math.max(1, Math.floor(dmg * CONFIG.GUARDING_DAMAGE_MULT));
+  let dmg = attackRoll(currentEnemy.atk, player.def, { variance: 4, defDiv: 1, min: synergy ? synergy.auraAtk : 0 });
+  dmg = guardedDamage(dmg, player.guarding, false);
   const critChance = chance(CONFIG.ENEMY_CRIT_CHANCE) || (currentEnemy.affix === "eldritch" && chance(CONFIG.ELITE_CRIT_EXTRA_CHANCE));
-  if (critChance && !player.guarding) dmg = Math.floor(dmg * CONFIG.ENEMY_CRIT_MULT);
+  if (critChance && !player.guarding) dmg = applyCrit(dmg, 1, CONFIG.ENEMY_CRIT_MULT);
   openBlockWindow(dmg, `${currentEnemy.name} prepara um golpe! Defenda-se apertando A!`);
 }
 
@@ -5990,7 +5991,7 @@ function doEnemySpecial() {
     return true;
   }
   if (kind === "armor") {
-    const bash = Math.max(1, Math.floor(currentEnemy.atk * 1.4) - player.def);
+    const bash = attackRoll(currentEnemy.atk, player.def, { atkMult: 1.4, variance: 0, defDiv: 1 });
     player.hp = Math.max(0, player.hp - bash);
     player.hitPulse = 12;
     addLog(`${currentEnemy.name} golpeia com o escudo! -${bash} PV.`, "red");
@@ -6010,7 +6011,7 @@ function doEnemySpecial() {
     return true;
   }
   if (kind === "golem") {
-    const stomp = Math.max(1, Math.floor(currentEnemy.atk * 1.3) - Math.floor(player.def / 2));
+    const stomp = attackRoll(currentEnemy.atk, player.def, { atkMult: 1.3, variance: 0 });
     player.hp = Math.max(0, player.hp - stomp);
     player.hitPulse = 14;
     addLog(`${currentEnemy.name} bate o pé no chão! Onda de choque: -${stomp} PV.`, "red");
@@ -6021,7 +6022,7 @@ function doEnemySpecial() {
     return true;
   }
   if (kind === "wraith") {
-    const drain = Math.max(1, Math.floor(currentEnemy.atk * 0.8) + rand(0, 3) - Math.floor(player.def / 2));
+    const drain = attackRoll(currentEnemy.atk, player.def, { atkMult: 0.8, variance: 3 });
     player.hp = Math.max(0, player.hp - drain);
     player.hitPulse = 10;
     const heal = Math.min(currentEnemy.maxHp - currentEnemy.hp, drain);
