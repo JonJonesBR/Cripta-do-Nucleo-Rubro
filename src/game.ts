@@ -26,6 +26,7 @@ import { playerElementForClass, elementMultiplier, assignEnemyElement, applyElit
 import { rollTalentChoices } from "./data/talents";
 import { captureChance, captureSuccess, makeWildEnemy, snapshotChampion, restoreChampion, applyMonsterToPlayer, readPlayerToMonster } from "./core/monsters";
 import { rollRelic } from "./core/relics";
+import { bossPatternIndex, decideEnemyAction, computeSynergy } from "./core/ai";
 
 "use strict";
 
@@ -4858,22 +4859,8 @@ function triggerWildAmbush() {
 // =============================================================
 function computeEnemySynergy() {
   if (!currentEnemy) return;
-  currentEnemy.synergy = { allies: [], auraAtk: 0, auraDef: 0, regen: 0 };
-  if (currentEnemy.boss) return;
-  const cx = currentEnemy.x, cy = currentEnemy.y;
-  for (const e of enemies) {
-    if (e === currentEnemy || !e.alive) continue;
-    const dx = Math.abs(e.x - cx), dy = Math.abs(e.y - cy);
-    const dist = Math.max(dx, dy);
-    if (dist <= CONFIG.SYNERGY_RANGE) {
-      const kind = e.kind;
-      currentEnemy.synergy.allies.push(e);
-      if (kind === "treant") currentEnemy.synergy.regen += CONFIG.SYNERGY_AURA_REGEN;
-      else if (kind === "golem") currentEnemy.synergy.auraDef += CONFIG.SYNERGY_AURA_DEF + 1;
-      else if (kind === "lich") currentEnemy.synergy.auraAtk += CONFIG.SYNERGY_AURA_ATK + 1;
-      else currentEnemy.synergy.auraAtk += CONFIG.SYNERGY_AURA_ATK;
-    }
-  }
+  if (currentEnemy.boss) { currentEnemy.synergy = { allies: [], auraAtk: 0, auraDef: 0, regen: 0 }; return; }
+  currentEnemy.synergy = computeSynergy(enemies, currentEnemy);
   if (currentEnemy.synergy.allies.length > 0) {
     const names = currentEnemy.synergy.allies.map(a => a.name).join(", ");
     currentEnemy.def = (currentEnemy.def || 0) + currentEnemy.synergy.auraDef;
@@ -5437,7 +5424,7 @@ function doBossPattern() {
     return;
   }
 
-  const p = (boss.bossPattern || 0) % (boss.phase2 ? 4 : 3);
+  const p = bossPatternIndex(boss.bossPattern, boss.phase2);
   boss.bossPattern = (boss.bossPattern || 0) + 1;
 
   if (!boss.phase2) {
@@ -5517,33 +5504,22 @@ const drain = effectiveIncomingDamage(attackRoll(boss.atk, player.def, { atkMult
   }
 }
 
-function hasEnemySpecial() {
-  const k = currentEnemy ? currentEnemy.kind : "";
-  return ["bat", "goblin", "armor", "specter", "golem", "wraith"].includes(k);
-}
-
 function rollEnemyIntent() {
   if (!currentEnemy) return null;
-  if (currentEnemy.intent) {
-    return { type: "unleash", label: "GOLPE CARREGADO", color: COLORS.red };
-  }
-  if (currentEnemy.boss) {
-    const p = (currentEnemy.bossPattern || 0) % (currentEnemy.phase2 ? 4 : 3);
-    if (!currentEnemy.phase2) {
-      if (p === 0) return { type: "charge", label: "CARREGAR", color: COLORS.orange };
-      if (p === 1) return { type: "drain", label: "DRENAR", color: COLORS.red };
-      return { type: "attack", label: "ATACAR", color: COLORS.red };
-    }
-    if (p === 0) return { type: "fire", label: "RAJADA", color: COLORS.orange };
-    if (p === 1) return { type: "stun", label: "GRITO", color: COLORS.gold };
-    if (p === 2) return { type: "purge", label: "PULSAR", color: COLORS.purple };
-    return { type: "drain", label: "DRENAR", color: COLORS.red };
-  }
-  const synergy = currentEnemy.synergy && currentEnemy.synergy.allies.length > 0 ? currentEnemy.synergy : null;
-  if (synergy && chance(CONFIG.SYNERGY_ASSIST_CHANCE)) return { type: "assist", label: "APOIO ALIADO", color: COLORS.purple };
-  if (hasEnemySpecial() && chance(CONFIG.ENEMY_SPECIAL_CHANCE)) return { type: "special", label: "HABILIDADE", color: COLORS.gold };
-  if (currentEnemy.telegraphCooldown === 0 && chance(CONFIG.TELEGRAPH_CHANCE)) return { type: "charge", label: "CARREGAR", color: COLORS.orange };
-  return { type: "attack", label: "ATACAR", color: COLORS.red };
+  const INTENT_UI = {
+    unleash: ["GOLPE CARREGADO", COLORS.red],
+    charge: ["CARREGAR", COLORS.orange],
+    drain: ["DRENAR", COLORS.red],
+    attack: ["ATACAR", COLORS.red],
+    fire: ["RAJADA", COLORS.orange],
+    stun: ["GRITO", COLORS.gold],
+    purge: ["PULSAR", COLORS.purple],
+    assist: ["APOIO ALIADO", COLORS.purple],
+    special: ["HABILIDADE", COLORS.gold]
+  };
+  const action = decideEnemyAction(currentEnemy);
+  const [label, color] = INTENT_UI[action];
+  return { type: action, label, color };
 }
 
 function enemyTurn() {
