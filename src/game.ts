@@ -20,6 +20,8 @@ import { checksum, migrateRun } from "./core/save";
 import { findPathBFSGrid } from "./core/pathfinding";
 import { attackRoll, applyCrit, guardedDamage, specialDamage, summonDamage, trapDamage, xpForLevel } from "./core/combat";
 import { generateDungeon, isWalkable, revealFog, isDiscovered, computeDijkstraMap, nextStepFromDijkstra, findFreeTile, ensureDungeonRuntimeState } from "./core/dungeon";
+import { resolveEventChoice } from "./core/events";
+import { buildShopOfferings } from "./core/shop";
 
 "use strict";
 
@@ -4723,147 +4725,130 @@ function chooseEventChoice(idx) {
   const cho = opts.choices[idx];
   if (cho.effect === "leave") { closeEventDialog(); return; }
   const x = sxFor(player.x), y = syFor(player.y);
-  if (cho.effect === "gold_cost" && player.gold >= cho.value) {
-    player.gold -= cho.value;
-    player.potions++;
-    addLog("O mercador agradece e oferece uma poção balsâmica.", "green");
-    burst(x, y, COLORS.green, 14, "heal");
-    showToast("MERCADOR AGRADECIDO");
-  } else if (cho.effect === "gold_cost") {
-    addLog("Você não tem ouro suficiente. Ele se afasta decepcionado.", "red");
-} else if (cho.effect === "rob") {
-    const got = rand(6, 20);
-    player.gold += got;
-    meta.runGold = (meta.runGold || 0) + got;
-    saveMeta(meta);
-    addLog(`Você rouba ${got} de ouro do mercador ferido.`, "gold");
-    burst(x, y, COLORS.gold, 10, "spark");
-    showToast(`+${got} OURO`);
-  } else if (cho.effect === "risk_power") {
-    if (chance(0.55)) {
-      player.atk++; player.mag++; player.maxHp += 3; player.hp += 3;
-      addLog("A poça concede poder: +ATK, +MAG, +3 PV máx.", "purple");
-      burst(x, y, COLORS.purple, 16, "spark");
-      showToast("PODER DA POÇA");
-    } else {
-const dmg = effectiveIncomingDamage(rand(4, 10));
-      player.hp = Math.max(1, player.hp - dmg);
-      addLog(`A poça drena sua vitalidade! -${dmg} PV.`, "red");
-      burst(x, y, COLORS.red, 12, "spark");
-      showToast("A POÇA SEDE!");
+  const state = { gold: player.gold, hp: player.hp, maxHp: player.maxHp, atk: player.atk, mag: player.mag, def: player.def, level: player.level, potions: player.potions };
+  const { state: next, outcome } = resolveEventChoice(cho.effect, state, cho.value);
+  player.gold = next.gold; player.hp = next.hp; player.maxHp = next.maxHp;
+  player.atk = next.atk; player.mag = next.mag; player.def = next.def; player.potions = next.potions;
+  const INSUFFICIENT_MSG = {
+    gold_cost: "Você não tem ouro suficiente. Ele se afasta decepcionado.",
+    gold_blessing: "O ouro escorre por seus dedos..., mas nada acontece.",
+    gamble_gold: "Sem ouro para apostar. O jogador bufa.",
+    gamble_hp: "Sua vida é frágil demais para apostar.",
+    sacrifice_hp: "O altar exige mais vida do que você tem.",
+    sacrifice_gold: "O altar ignora seu ouro insuficiente.",
+    pay_lock: "Sem ouro suficiente para o cofre."
+  };
+  const grantRelic = (burstCount) => {
+    const relic = pickRelic(player);
+    runStats.relics++; meta.relicsFound = (meta.relicsFound || 0) + 1; saveMeta(meta);
+    if (burstCount) burst(x, y, COLORS.purple, burstCount, "spark");
+    showToast(relic.name);
+    return relic;
+  };
+  switch (outcome.type) {
+    case "insufficient":
+      addLog(INSUFFICIENT_MSG[cho.effect] || "Nada acontece.", "red");
+      break;
+    case "gold_cost_paid":
+      addLog("O mercador agradece e oferece uma poção balsâmica.", "green");
+      burst(x, y, COLORS.green, 14, "heal");
+      showToast("MERCADOR AGRADECIDO");
+      break;
+    case "rob": {
+      const got = outcome.amount;
+      meta.runGold = (meta.runGold || 0) + got;
+      saveMeta(meta);
+      addLog(`Você rouba ${got} de ouro do mercador ferido.`, "gold");
+      burst(x, y, COLORS.gold, 10, "spark");
+      showToast(`+${got} OURO`);
+      break;
     }
-  } else if (cho.effect === "gold_blessing") {
-    if (player.gold >= cho.value) {
-      player.gold -= cho.value;
-      player.mag++; player.atk++;
+    case "power":
+      if (cho.effect === "fountain_drink") {
+        addLog("A água corre em suas veias como energia viva: +ATK, +MAG, +4 PV máx.", "purple");
+        burst(x, y, COLORS.blue, 16, "spark");
+        showToast("FORÇA DA FONTE");
+      } else {
+        addLog("A poça concede poder: +ATK, +MAG, +3 PV máx.", "purple");
+        burst(x, y, COLORS.purple, 16, "spark");
+        showToast("PODER DA POÇA");
+      }
+      break;
+    case "damage": {
+      const dmg = effectiveIncomingDamage(outcome.amount);
+      player.hp = Math.max(1, player.hp - dmg);
+      const msg = cho.effect === "fountain_drink"
+        ? `A fonte morde de volta! -${dmg} PV.`
+        : cho.effect === "force_lock"
+          ? "Uma lâmina dispara do cofre! -" + dmg + " PV."
+          : `A poça drena sua vitalidade! -${dmg} PV.`;
+      addLog(msg, "red");
+      burst(x, y, COLORS.red, 12, "spark");
+      if (cho.effect === "fountain_drink") showToast("A FONTE SEDE");
+      else if (cho.effect === "risk_power") showToast("A POÇA SEDE!");
+      break;
+    }
+    case "gold_blessing_paid":
       addLog("A bênção se solidifica em seu sangue: +ATK, +MAG.", "purple");
       burst(x, y, COLORS.purple, 16, "spark");
-    } else addLog("O ouro escorre por seus dedos..., mas nada acontece.", "red");
-  } else if (cho.effect === "xp_boost") {
-    const leveled = gainXp(player, 20 + player.level * 4);
-    addLog("A memória conceda experiência antiga.", "blue");
-    if (leveled) { showToast(`LEVEL UP! ${player.level}`); burst(x, y, COLORS.gold, 22, "spark"); playSfx("level"); }
-  } else if (cho.effect === "heal") {
-    const heal = Math.min(player.maxHp - player.hp, 20 + player.level * 3);
-    player.hp += heal;
-    addLog(`A reza sela suas feridas: +${heal} PV.`, "green");
-    burst(x, y, COLORS.green, 16, "heal");
-  } else if (cho.effect === "gamble_gold") {
-    if (player.gold >= cho.value) {
-      player.gold -= cho.value;
-if (chance(0.5)) {
-        player.gold += cho.value * 2;
-        meta.runGold = (meta.runGold || 0) + cho.value * 2;
-        saveMeta(meta);
-        addLog("OS dados: vitória! Seu ouro dobra!", "gold");
-        showToast("VITÓRIA NO DADO!");
-      } else {
-        addLog("Os dados caem contra você. Ouro perdido.", "red");
-        showToast("DERROTA NO DADO");
-      }
+      break;
+    case "xp": {
+      const leveled = gainXp(player, outcome.amount);
+      addLog("A memória conceda experiência antiga.", "blue");
+      if (leveled) { showToast(`LEVEL UP! ${player.level}`); burst(x, y, COLORS.gold, 22, "spark"); playSfx("level"); }
+      break;
+    }
+    case "heal":
+      addLog(`A reza sela suas feridas: +${outcome.amount} PV.`, "green");
+      burst(x, y, COLORS.green, 16, "heal");
+      break;
+    case "gamble_win": {
+      meta.runGold = (meta.runGold || 0) + outcome.amount;
+      saveMeta(meta);
+      addLog("OS dados: vitória! Seu ouro dobra!", "gold");
+      showToast("VITÓRIA NO DADO!");
       burst(x, y, COLORS.gold, 12, "spark");
-    } else addLog("Sem ouro para apostar. O jogador bufa.", "red");
-  } else if (cho.effect === "gamble_hp") {
-    if (player.hp > cho.value) {
-      player.hp -= cho.value;
-      if (chance(0.5)) {
-        const relic = pickRelic(player);
-        runStats.relics++; meta.relicsFound = (meta.relicsFound || 0) + 1; saveMeta(meta);
-        addLog(`O destino concede: ${relic.name}!`, "gold");
-        showToast(relic.name);
-      } else {
-        addLog("A aposta falha. Você entregou sua vida por nada.", "red");
-      }
+      break;
+    }
+    case "gamble_lose":
+      addLog("Os dados caem contra você. Ouro perdido.", "red");
+      showToast("DERROTA NO DADO");
+      burst(x, y, COLORS.gold, 12, "spark");
+      break;
+    case "gamble_hp_win": {
+      const relic = grantRelic(0);
+      addLog(`O destino concede: ${relic.name}!`, "gold");
       burst(x, y, COLORS.purple, 14, "spark");
-    } else addLog("Sua vida é frágil demais para apostar.", "red");
-  } else if (cho.effect === "sacrifice_hp") {
-    if (player.hp > cho.value) {
-      player.hp -= cho.value;
-      const relic = pickRelic(player);
-      runStats.relics++; meta.relicsFound = (meta.relicsFound || 0) + 1; saveMeta(meta);
-      addLog(`O altar devora ${cho.value} PV e entrega: ${relic.name}!`, "gold");
-      burst(x, y, COLORS.purple, 18, "spark");
-      showToast(relic.name);
-    } else addLog("O altar exige mais vida do que você tem.", "red");
-  } else if (cho.effect === "sacrifice_gold") {
-    if (player.gold >= cho.value) {
-      player.gold -= cho.value;
-      const relic = pickRelic(player);
-      runStats.relics++; meta.relicsFound = (meta.relicsFound || 0) + 1; saveMeta(meta);
-      addLog(`O altar absorve ${cho.value} ouro e entrega: ${relic.name}!`, "gold");
-      showToast(relic.name);
-    } else addLog("O altar ignora seu ouro insuficiente.", "red");
-  } else if (cho.effect === "force_lock") {
-    if (chance(0.6)) {
-      const relic = pickRelic(player);
-      runStats.relics++; meta.relicsFound = (meta.relicsFound || 0) + 1; saveMeta(meta);
-      addLog(`A fechadura cede! Relíquia: ${relic.name}.`, "gold");
-      showToast(relic.name);
-    } else {
-const dmg = effectiveIncomingDamage(rand(6, 14));
-      player.hp = Math.max(1, player.hp - dmg);
-      addLog("Uma lâmina dispara do cofre! -" + dmg + " PV.", "red");
-      burst(x, y, COLORS.red, 12, "spark");
+      break;
     }
-} else if (cho.effect === "pay_lock") {
-    if (player.gold >= cho.value) {
-      player.gold -= cho.value;
-      const relic = pickRelic(player);
-      runStats.relics++; meta.relicsFound = (meta.relicsFound || 0) + 1; saveMeta(meta);
-      addLog(`O cofre se abre: ${relic.name}!`, "gold");
-      showToast(relic.name);
-    } else addLog("Sem ouro suficiente para o cofre.", "red");
-  } else if (cho.effect === "fountain_drink") {
-    if (chance(0.6)) {
-      player.atk++; player.mag++;
-      player.maxHp += 4; player.hp += 4;
-      addLog("A água corre em suas veias como energia viva: +ATK, +MAG, +4 PV máx.", "purple");
-      burst(x, y, COLORS.blue, 16, "spark");
-      showToast("FORÇA DA FONTE");
-    } else {
-      const dmg = effectiveIncomingDamage(rand(5, 12));
-      player.hp = Math.max(1, player.hp - dmg);
-      addLog(`A fonte morde de volta! -${dmg} PV.`, "red");
-      burst(x, y, COLORS.red, 12, "spark");
-      showToast("A FONTE SEDE");
+    case "gamble_hp_lose":
+      addLog("A aposta falha. Você entregou sua vida por nada.", "red");
+      burst(x, y, COLORS.purple, 14, "spark");
+      break;
+    case "relic": {
+      const relic = grantRelic(cho.effect === "sacrifice_hp" ? 18 : 0);
+      if (cho.effect === "sacrifice_hp") addLog(`O altar devora ${outcome.hpCost} PV e entrega: ${relic.name}!`, "gold");
+      else if (cho.effect === "sacrifice_gold") addLog(`O altar absorve ${outcome.goldCost} ouro e entrega: ${relic.name}!`, "gold");
+      else if (cho.effect === "force_lock") addLog(`A fechadura cede! Relíquia: ${relic.name}.`, "gold");
+      else addLog(`O cofre se abre: ${relic.name}!`, "gold");
+      break;
     }
-  } else if (cho.effect === "fountain_bottle") {
-    player.potions++;
-    addLog("Você enche um frasco com a água cintilante: +1 poção.", "green");
-    burst(x, y, COLORS.green, 14, "heal");
-    showToast("+1 POÇÃO");
-  } else if (cho.effect === "bone_upgrade") {
-    player.atk += 2;
-    addLog("O Ferreiro dos Ossos afia sua lâmina: +2 ATK.", "purple");
-    burst(x, y, COLORS.purple, 16, "spark");
-    playSfx("level");
-    showToast("+2 ATK");
-  } else if (cho.effect === "bone_armor") {
-    player.def += 2;
-    addLog("O Ferreiro dos Ossos reforça sua armadura: +2 DEF.", "purple");
-    burst(x, y, COLORS.purple, 16, "spark");
-    playSfx("level");
-    showToast("+2 DEF");
+    case "potion":
+      addLog("Você enche um frasco com a água cintilante: +1 poção.", "green");
+      burst(x, y, COLORS.green, 14, "heal");
+      showToast("+1 POÇÃO");
+      break;
+    case "stats":
+      if (cho.effect === "bone_upgrade") {
+        addLog("O Ferreiro dos Ossos afia sua lâmina: +2 ATK.", "purple");
+        showToast("+2 ATK");
+      } else {
+        addLog("O Ferreiro dos Ossos reforça sua armadura: +2 DEF.", "purple");
+        showToast("+2 DEF");
+      }
+      burst(x, y, COLORS.purple, 16, "spark");
+      playSfx("level");
+      break;
   }
   updateUI();
   saveCurrentRun();
@@ -4891,13 +4876,7 @@ function openShopDialog(item) {
   const shopIdx = items.indexOf(item);
   if (shopIdx >= 0) items.splice(shopIdx, 1);
   releaseItem(item);
-  const floorSurcharge = Math.max(0, (currentFloor - 2)) * CONFIG.SHOP_FLOOR_COST_ADD;
-  const offerings = [];
-  offerings.push({ kind: "potion", name: "Poção de Cura", cost: CONFIG.SHOP_POTION_COST + floorSurcharge });
-  offerings.push({ kind: "crystal", name: "Cristal de Captura", cost: CONFIG.CAPTURE_CRYSTAL_COST + floorSurcharge });
-const shopRelicPool = RELIC_POOL.filter(r => !player.relicNames.includes(r.name));
-  const relic = shopRelicPool.length ? shopRelicPool[rand(0, shopRelicPool.length - 1)] : null;
-  if (relic) offerings.push({ kind: "relic", name: relic.name, cost: CONFIG.SHOP_RELIC_COST + floorSurcharge });
+  const offerings = buildShopOfferings(player.relicNames || [], currentFloor);
   shopDialog = { offerings, selected: 0, timer: CONFIG.MENTOR_DIALOG_TICKS };
   gameState = "bossIntro";
   inputFrozen = true;
