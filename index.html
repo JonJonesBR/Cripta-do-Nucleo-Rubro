@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Dungeon 16-bit: Cripta do Núcleo Rubro</title>
+  <meta name="theme-color" content="#080816" />
+</head>
+<body>
+  <main id="gameShell">
+    <section id="topBar">
+      <div class="appBrand"><span class="appBrandMark">◉</span><span class="appBrandText">CRIPTA DO NÚCLEO RUBRO</span></div>
+      <div class="statBox" id="stats"></div>
+      <div id="topActions">
+        <button class="menuBtn" id="pauseBtn" type="button" aria-label="Pausar">Ⅱ</button>
+        <button class="menuBtn" id="soundBtn" type="button" aria-label="Som ligado">♪</button>
+        <div id="miniHelp">
+          <span class="touchHelp">D-pad move<br>A ataca/confirma<br>B habilidade/poção</span>
+          <span class="keyHelp">Setas/WASD move<br>Z/Enter ataca<br>X/Espaço habilidade</span>
+        </div>
+      </div>
+    </section><section id="screenWrap">
+  <canvas id="game" width="320" height="240" role="application" aria-label="Tela do jogo"></canvas>
+  <div id="toast" role="alert" aria-live="assertive" aria-atomic="true"></div>
+  <div id="loadingOverlay">
+    <div class="loadingSpinner"></div>
+    <span class="loadingText">Carregando...</span>
+    <div id="loadingBar"><div id="loadingBarFill"></div></div>
+  </div>
+  <div class="fade-overlay" id="fadeOverlay"></div>
+  <div id="menuOverlay" role="dialog" aria-modal="true" aria-label="Menu principal">
+    <div class="menuPanel">
+      <div id="menuHomeView" class="menuView">
+        <div class="brandBlock">
+          <p class="kicker">Android dungeon RPG</p>
+          <h1>CRIPTA DO<br>NÚCLEO RUBRO</h1>
+          <p>Explore cinco andares, domine combates por turnos e quebre o selo do Guardião Rubro.</p>
+        </div>
+        <div class="menuStack">
+          <button class="menuBtn primaryBtn hidden" id="continueBtn" type="button" data-i18n="CONTINUE">CONTINUAR EXPEDIÇÃO</button>
+          <button class="menuBtn primaryBtn" id="menuPlayBtn" type="button" data-i18n="PLAY">INICIAR JORNADA</button>
+          <button class="menuBtn" id="menuOptionsBtn" type="button" data-i18n="OPTIONS">OPÇÕES</button>
+        </div>
+      </div>
+
+      <div id="characterSelectView" class="menuView hidden">
+        <div class="selectHeader">
+          <p class="kicker">Escolha seu herói</p>
+          <h2>Seleção de Classe</h2>
+          <p>Cada classe muda o ritmo do combate. Escolha pelo estilo de jogo, não só pelos números.</p>
+        </div>        <div id="classButtons">
+          <button class="menuBtn classCard" data-class="warrior" type="button" aria-pressed="false">
+            <span class="classIcon">♜</span>
+            <span class="className" data-i18n="CLASS_WARRIOR">Guerreiro</span>
+            <span class="classRole" data-i18n="ROLE_WARRIOR">Tanque disciplinado</span>
+            <span class="classStats">
+              <span class="classStat">PV <i style="--fill: 92%"></i></span>
+              <span class="classStat">ATK <i style="--fill: 72%"></i></span>
+              <span class="classStat">DEF <i style="--fill: 86%"></i></span>
+            </span>
+        </button>
+          <button class="menuBtn classCard" data-class="rogue" type="button" aria-pressed="false">
+            <span class="classIcon">♦</span>
+            <span class="className" data-i18n="CLASS_ROGUE">Ladino</span>
+            <span class="classRole" data-i18n="ROLE_ROGUE">Crítico evasivo</span>
+            <span class="classStats">
+              <span class="classStat">PV <i style="--fill: 70%"></i></span>
+              <span class="classStat">ATK <i style="--fill: 82%"></i></span>
+              <span class="classStat">CRIT <i style="--fill: 95%"></i></span>
+            </span>
+        </button>
+          <button class="menuBtn classCard" data-class="mage" type="button" aria-pressed="false">
+            <span class="classIcon">✦</span>
+            <span class="className" data-i18n="CLASS_MAGE">Mago</span>
+            <span class="classRole" data-i18n="ROLE_MAGE">Explosão arcana</span>
+            <span class="classStats">
+              <span class="classStat">PV <i style="--fill: 58%"></i></span>
+              <span class="classStat">MAG <i style="--fill: 98%"></i></span>
+              <span class="classStat">DEF <i style="--fill: 46%"></i></span>
+            </span>
+        </button>
+          <button class="menuBtn classCard" data-class="beastmaster" type="button" aria-pressed="false">
+            <span class="classIcon">♞</span>
+            <span class="className" data-i18n="CLASS_BEASTMASTER">Domador</span>
+            <span class="classRole" data-i18n="ROLE_BEASTMASTER">Força da selva</span>
+            <span class="classStats">
+              <span class="classStat">PV <i style="--fill: 78%"></i></span>
+              <span class="classStat">ATK <i style="--fill: 68%"></i></span>
+              <span class="classStat">CRIT <i style="--fill: 72%"></i></span>
+            </span>
+        </button>
+          <button class="menuBtn classCard" data-class="witch" type="button" aria-pressed="false">
+            <span class="classIcon">✶</span>
+            <span class="className" data-i18n="CLASS_WITCH">Bruxa</span>
+            <span class="classRole" data-i18n="ROLE_WITCH">Magia caótica</span>
+            <span class="classStats">
+              <span class="classStat">PV <i style="--fill: 62%"></i></span>
+              <span class="classStat">MAG <i style="--fill: 96%"></i></span>
+              <span class="classStat">DEF <i style="--fill: 54%"></i></span>
+            </span>
+        </button>
+        </div>
+        <div id="classDetails">
+          <b>Selecione uma classe</b><br>
+          Toque em um herói para ver atributos e habilidade antes de iniciar.
+        </div>
+        <div class="selectActions">
+          <button class="menuBtn primaryBtn hidden" id="startJourneyBtn" type="button" data-i18n="ENTER_CRYPT">ENTRAR NA CRIPTA</button>
+          <button class="menuBtn" id="backToMenuFromClassBtn" type="button" data-i18n="BACK">VOLTAR</button>
+        </div>
+      </div>
+
+      <div id="introCinematicView" class="menuView hidden">
+        <div id="introText" class="cinematicText"></div>
+        <button class="menuBtn primaryBtn" id="introAdvanceBtn" type="button" data-i18n="ADVANCE">AVANÇAR</button>
+      </div>
+
+      <div id="optionsView" class="menuView hidden">
+        <button class="menuBtn" id="menuSoundBtn" type="button">SOM: LIGADO</button>
+        <button class="menuBtn" id="menuOneHandBtn" type="button">MÃO: DUAS</button>
+        <button class="menuBtn" id="menuLangBtn" type="button">IDIOMA: PORTUGUÊS</button>
+        <div class="volControl">
+          <label>Música <input type="range" id="musicVolSlider" min="0" max="100" value="30"></label>
+          <label>SFX <input type="range" id="sfxVolSlider" min="0" max="100" value="100"></label>
+        </div>
+        <label class="seedControl">Semente da Cripta
+          <input type="text" id="seedInput" maxlength="24" placeholder="vazio = aleatória">
+        </label>
+        <button class="menuBtn" id="menuEndlessBtn" type="button"></button>
+        <button class="menuBtn" id="menuCombatBtn" type="button">COMBATE: POR TURNOS</button>
+        <button class="menuBtn" id="menuGfxBtn" type="button">GRÁFICOS: PS1</button>
+        <button class="menuBtn" id="menuColorBtn" type="button">CORES: PADRÃO</button>
+        <button class="menuBtn" id="menuContrastBtn" type="button">CONTRASTE: NORMAL</button>
+        <button class="menuBtn" id="menuFlashBtn" type="button">FLASH: NORMAL</button>
+        <button class="menuBtn" id="menuUIBtn" type="button">TAMANHO UI: NORMAL</button>
+        <button class="menuBtn" id="menuDifficultyBtn" type="button">DIFICULDADE: NORMAL</button>
+        <button class="menuBtn" id="menuExportBtn" type="button">EXPORTAR SAVE</button>
+        <button class="menuBtn" id="menuImportBtn" type="button">IMPORTAR SAVE</button>
+        <div id="slotList" class="slotList"></div>
+        <div id="metaRecords">
+          <b>Registros da Cripta</b><br>
+          <span id="metaRecordLines">Vitórias 0 · Melhor Nv. 1 · Abates 0 · Baús 0</span>
+        </div>
+        <button class="menuBtn" id="backToMenuFromOptionsBtn" type="button">VOLTAR</button>
+      </div>
+    </div>
+    <div class="menuFooter">
+      <span class="pill">Toque em uma classe para iniciar</span>
+      <span class="pill">Swipe move · toque na tela inspeciona</span>
+    </div>
+  </div>
+</section>
+
+<div id="pauseOverlay" class="modalOverlay hidden" role="dialog" aria-modal="true" aria-label="Menu de pausa">
+    <div class="pausePanel">
+      <p class="kicker">Expedição pausada</p>
+      <h2>MENU</h2>
+      <div class="pauseStats">
+        <div class="pauseStat">Herói <b id="pauseHero">--</b></div>
+        <div class="pauseStat">Progresso <b id="pauseProgress">--</b></div>
+        <div class="pauseStat">Vida <b id="pauseHp">--</b></div>
+        <div class="pauseStat">Inventário <div id="pauseItems">--</div></div>
+      </div>
+      <div class="pauseActions">
+        <button class="menuBtn primaryBtn" id="resumeBtn" type="button" data-i18n="RESUME">CONTINUAR</button>
+        <button class="menuBtn" id="pauseSaveBtn" type="button" data-i18n="SAVE_GAME">SALVAR JOGO</button>
+        <button class="menuBtn" id="pauseSoundBtn" type="button">SOM: LIGADO</button>
+        <button class="menuBtn" id="pauseCombatBtn" type="button">COMBATE: POR TURNOS</button>
+        <button class="menuBtn dangerBtn" id="restartBtn" type="button" data-i18n="RESTART">VOLTAR AO INÍCIO</button>
+      </div>
+    </div>
+    <div class="pauseFooter">
+      <span class="pill">B ou Esc fecha o menu</span>
+      <span class="pill">Sessão em arquivo único HTML</span>
+    </div>
+  </div>
+
+<div id="commandMenu" class="commandOverlay hidden" role="dialog" aria-modal="true" aria-label="Menu de comandos de batalha">
+  <div class="commandPanel">
+    <div class="commandTitle" id="commandTitle">AÇÃO</div>
+    <div id="commandMain">
+      <button class="cmdBtn" data-cmd="attack" type="button">⚔ ATAÇAR</button>
+      <button class="cmdBtn" data-cmd="skill" type="button">✦ HABILIDADE</button>
+      <button class="cmdBtn" data-cmd="guard" type="button">🛡 DEFENDER</button>
+      <button class="cmdBtn" data-cmd="item" type="button">♦ POÇÃO</button>
+      <button class="cmdBtn" data-cmd="switch" type="button">⇄ TROCAR</button>
+      <button class="cmdBtn" data-cmd="capture" type="button">◆ CAPTURAR</button>
+    </div>
+    <div id="commandRoster" class="commandRoster hidden"></div>
+    <div class="commandHint" id="commandHint">D-PAD escolhe · A confirma · B passa a vez</div>
+  </div>
+</div>
+
+<section id="sidePanel">
+  <section id="logBox">
+    <div id="logLines" aria-live="polite"></div>
+  </section>
+
+  <section id="controls" aria-label="Controles virtuais. Dpad move. A ataca ou confirma. B habilidade ou poção.">
+    <div id="dpad">
+      <button class="padBtn empty" aria-hidden="true"></button>
+      <button class="padBtn" data-dir="up" aria-label="Mover para cima">▲</button>
+      <button class="padBtn empty" aria-hidden="true"></button>
+      <button class="padBtn" data-dir="left" aria-label="Mover para esquerda">◀</button>
+      <button class="padBtn empty" aria-hidden="true"></button>
+      <button class="padBtn" data-dir="right" aria-label="Mover para direita">▶</button>
+      <button class="padBtn empty" aria-hidden="true"></button>
+      <button class="padBtn" data-dir="down" aria-label="Mover para baixo">▼</button>
+      <button class="padBtn empty" aria-hidden="true"></button>
+    </div>
+
+    <div id="actionButtons">
+      <button class="actBtn" data-action="b" aria-label="Botão B: habilidade ou poção">B<span id="bLabel">HAB</span></button>
+      <button class="actBtn" data-action="a" aria-label="Botão A: atacar ou confirmar">A<span id="aLabel">OK</span></button>
+    </div>
+  </section>
+</section>
+
+  </main>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
