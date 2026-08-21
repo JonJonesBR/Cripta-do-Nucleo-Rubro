@@ -23,6 +23,9 @@ import { generateDungeon, isWalkable, revealFog, isDiscovered, computeDijkstraMa
 import { resolveEventChoice } from "./core/events";
 import { buildShopOfferings } from "./core/shop";
 import { playerElementForClass, elementMultiplier, assignEnemyElement, applyEliteAffix } from "./core/elements";
+import { rollTalentChoices } from "./data/talents";
+import { captureChance, captureSuccess, makeWildEnemy, snapshotChampion, restoreChampion, applyMonsterToPlayer, readPlayerToMonster } from "./core/monsters";
+import { rollRelic } from "./core/relics";
 
 "use strict";
 
@@ -677,36 +680,15 @@ function tryOpenTalentDialog() {
 }
 
 function pickRelic(player) {
-  const pool = RELIC_POOL.filter(relic => !player.relicNames.includes(relic.name));
-  const relic = pool.length
-    ? pool[rand(0, pool.length - 1)]
-    : { name: "Fragmento Rubro", apply: (p) => { p.maxHp += 3; p.hp += 3; } };
+  const relic = rollRelic(player.relicNames || []);
   relic.apply(player);
   if (!player.relicNames.includes(relic.name)) player.relicNames.push(relic.name);
   return relic;
 }
 
-const TALENT_POOL = [
-  { name: "Muralha", desc: "+3 DEF", apply: p => { p.def += 3; } },
-  { name: "Mãos Firmes", desc: "+2 ATK", apply: p => { p.atk += 2; } },
-  { name: "Sangue Rubro", desc: "+12 PV máx", apply: p => { p.maxHp += 12; p.hp += 12; } },
-  { name: "Afinidade Arcanística", desc: "+3 MAG", apply: p => { p.mag += 3; } },
-  { name: "Olhos do Caçador", desc: "+4% crítico", apply: p => { p.crit = Math.min(CONFIG.MAX_CRIT, p.crit + 0.04); } },
-  { name: "Saqueador", desc: "+20 ouro", apply: p => { p.gold += 20; } },
-  { name: "Alquimista", desc: "+1 poção", apply: p => { p.potions++; } },
-  { name: "Vitalidade", desc: "+1 killHeal", apply: p => { p.killHeal = (p.killHeal || 0) + 1; } },
-  { name: "Mente Viva", desc: "Habilidades +1 turno mais rápido", apply: p => { p.specialMaxCd = Math.max(1, (p.specialMaxCd || 4) - 1); } },
-  { name: "Presságio", desc: "+15% chance de esquiva", apply: p => { p.dodgeChance = Math.min(0.5, (p.dodgeChance || 0) + 0.15); } }
-];
-
 function startTalentDialog() {
-  const pool = TALENT_POOL.filter(t => !(player.chosenTalents || []).includes(t.name));
-  if (!pool.length) return;
-  const choices = [];
-  while (choices.length < 3 && pool.length) {
-    const idx = rand(0, pool.length - 1);
-    choices.push(pool.splice(idx, 1)[0]);
-  }
+  const choices = rollTalentChoices(player.chosenTalents || []);
+  if (!choices.length) return;
   talentDialog = { choices, selected: 0 };
   gameState = "bossIntro";
   inputFrozen = true;
@@ -777,24 +759,6 @@ function processStatusTurn(target) {
   return { skipTurn: false };
 }
 
-function makeWildEnemy(currentFloor, playerLevel) {
-  const floorPool = ENEMY_TYPES.filter(e => e.minFloor <= currentFloor);
-  const base = floorPool[rand(0, floorPool.length - 1)];
-  const floorBonus = currentFloor - 1;
-  const bonus = Math.max(0, playerLevel - 1) + floorBonus;
-  return {
-    ...base,
-    x: 0, y: 0,
-    maxHp: base.hp + bonus * 5,
-    hp: base.hp + bonus * 5,
-    atk: base.atk + bonus,
-    def: base.def + Math.floor(bonus / 2),
-    xp: base.xp + bonus * 4,
-    alive: true,
-    wild: true,
-    statusEffects: {}
-  };
-}
 
 const effectPool = [];
 let effects = [];
@@ -3298,56 +3262,14 @@ function cancelCommandMenu() {
 // =============================================================
 // MONSTER TEAM (switch / faint / capture)
 // =============================================================
-function captureChampionSnapshot() {
-  player.championSnapshot = {
-    className: player.className,
-    hp: player.hp, maxHp: player.maxHp,
-    atk: player.atk, def: player.def, mag: player.mag, crit: player.crit,
-    stamina: player.stamina, maxStamina: player.maxStamina,
-    special: player.special, specialCd: player.specialCd, specialMaxCd: player.specialMaxCd,
-    classKey: player.classKey, statusEffects: player.statusEffects
-  };
-}
-
-function writeMonsterToPlayer(m) {
-  player.className = m.name;
-  player.hp = m.hp; player.maxHp = m.maxHp;
-  player.atk = m.atk; player.def = m.def; player.mag = m.mag; player.crit = m.crit;
-  player.stamina = 3; player.maxStamina = 3;
-  player.special = m.skill; player.specialCd = m.skillCd; player.specialMaxCd = CONFIG.MONSTER_SKILL_CD;
-  player.skillAtkMult = m.skillAtkMult || 1.3;
-  player.skillHealRatio = m.skillHealRatio || 0;
-  player.statusEffects = m.statusEffects || {};
-  player.guarding = false;
-}
-
-function readPlayerToMonster(m) {
-  m.hp = player.hp; m.maxHp = player.maxHp;
-  m.atk = player.atk; m.def = player.def; m.mag = player.mag; m.crit = player.crit;
-  m.skillCd = player.specialCd;
-  m.statusEffects = player.statusEffects;
-}
-
-function restoreChampionFromSnapshot() {
-  const s = player.championSnapshot;
-  if (!s) return;
-  player.className = s.className;
-  player.hp = s.hp; player.maxHp = s.maxHp;
-  player.atk = s.atk; player.def = s.def; player.mag = s.mag; player.crit = s.crit;
-  player.stamina = s.stamina; player.maxStamina = s.maxStamina;
-  player.special = s.special; player.specialCd = s.specialCd; player.specialMaxCd = s.specialMaxCd;
-  player.classKey = s.classKey;
-  player.statusEffects = s.statusEffects;
-  player.championSnapshot = null;
-}
-
 function switchToSlot(slotIdx) {
   if (!player || slotIdx === player.activeSlot) return;
   if (slotIdx === 0) {
     if (player.activeSlot > 0) {
       const m = player.monsters[player.activeSlot - 1];
-      if (m) readPlayerToMonster(m);
-      restoreChampionFromSnapshot();
+      if (m) readPlayerToMonster(m, player);
+      restoreChampion(player, player.championSnapshot);
+      player.championSnapshot = null;
       player.activeSlot = 0;
       addLog(`${player.className} volta ao combate!`, "gold");
       playSfx("select");
@@ -3358,12 +3280,12 @@ function switchToSlot(slotIdx) {
   const m = player.monsters[slotIdx - 1];
   if (!m) return;
   if (player.activeSlot === 0) {
-    captureChampionSnapshot();
+    player.championSnapshot = snapshotChampion(player);
   } else {
     const cur = player.monsters[player.activeSlot - 1];
-    if (cur) readPlayerToMonster(cur);
+    if (cur) readPlayerToMonster(cur, player);
   }
-  writeMonsterToPlayer(m);
+  applyMonsterToPlayer(player, m);
   player.activeSlot = slotIdx;
   addLog(`${m.name} entra no combate!`, "purple");
   if (!switchTutorialShown) {
@@ -3379,8 +3301,9 @@ function handlePlayerDown() {
   if (player.hp > 0) return false;
   if (player.activeSlot > 0) {
     const m = player.monsters[player.activeSlot - 1];
-    if (m) { readPlayerToMonster(m); m.hp = 0; m.alive = false; }
-    restoreChampionFromSnapshot();
+    if (m) { readPlayerToMonster(m, player); m.hp = 0; m.alive = false; }
+    restoreChampion(player, player.championSnapshot);
+    player.championSnapshot = null;
     player.activeSlot = 0;
     if (player.hp <= 0) return true;
     addLog(`${m.name} desmaiou! ${player.className} assume o combate.`, "gold");
@@ -3423,13 +3346,11 @@ function tryCapture() {
     captureTutorialShown = true;
     addLog("Dica: capture o inimigo quando ele estiver com poucos PV para ter maior chance de sucesso!", "cyan");
   }
-  const ratio = Math.min(1, Math.max(0, currentEnemy.hp / currentEnemy.maxHp));
-  const chanceVal = CONFIG.CAPTURE_BASE_CHANCE + (1 - ratio) * CONFIG.CAPTURE_HP_RATIO_BONUS;
   addLog("Você ergue o cristal de captura...", "blue");
   burst(sxFor(currentEnemy.x), syFor(currentEnemy.y), COLORS.blue, 12, "spark");
   playSfx("rune");
   shake = 5;
-if (Math.random() < chanceVal) {
+if (captureSuccess(currentEnemy.hp, currentEnemy.maxHp)) {
     const m = createMonsterFromEnemy(currentEnemy);
     player.monsters.push(m);
     const metaNow = loadMeta();
@@ -5901,8 +5822,9 @@ meta.kills = (meta.kills || 0) + 1;
 
   if (player.activeSlot > 0) {
     const m = player.monsters[player.activeSlot - 1];
-    if (m) readPlayerToMonster(m);
-    restoreChampionFromSnapshot();
+    if (m) readPlayerToMonster(m, player);
+    restoreChampion(player, player.championSnapshot);
+    player.championSnapshot = null;
     player.activeSlot = 0;
   }
   for (const m of player.monsters || []) gainMonsterXp(m, defeatedXp);
