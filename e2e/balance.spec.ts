@@ -74,3 +74,24 @@ test("balance: player progression offers class-specific stat curves", async ({ p
   expect(b.def).toBe(5);
   expect(errors).toEqual([]);
 });
+
+test("balance: damage constants stay coherent (guards against silent regression)", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", e => errors.push(String(e)));
+  await startRun(page);
+  const c = await page.evaluate(() => window.__GAME__.debugBalanceConstants());
+  // guard/block reduzem dano; críticos e fraqueza amplificam; resistência reduz.
+  expect(c.guardingMult).toBeGreaterThan(0);
+  expect(c.guardingMult).toBeLessThan(1);
+  expect(c.perfectDivisor).toBeGreaterThanOrEqual(2);
+  expect(c.critMult).toBeGreaterThan(1);
+  expect(c.weakMult).toBeGreaterThan(1);
+  expect(c.resistMult).toBeLessThan(1);
+  expect(c.surgeMult).toBeGreaterThan(1);
+  expect(c.burstMult).toBeGreaterThan(1);
+  expect(c.phase2AtkMult).toBeGreaterThan(1);
+  expect(c.phase2DefMult).toBeGreaterThanOrEqual(1);
+  expect(c.captureBase).toBeGreaterThan(0);
+  expect(c.captureBase).toBeLessThan(1);
+  expect(errors).toEqual([]);
+});

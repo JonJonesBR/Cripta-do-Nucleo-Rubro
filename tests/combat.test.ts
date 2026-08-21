@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   physicalDamage, magicDamage, applyCrit, trapDamage, guardedDamage, xpForLevel,
-  attackRoll, specialDamage, summonDamage
+  attackRoll, specialDamage, summonDamage,
+  rogueBleedPower, mageBurnPower, witchBurnPower, beastBleedPower, venomBleedPower
 } from "../src/core/combat";
 
 const fixedRng = (v) => () => v;
@@ -138,5 +139,33 @@ describe("trapDamage", () => {
     expect(trapDamage(0, fixedRng(0.99))).toBe(8);
     expect(trapDamage(1000, fixedRng(0))).toBe(3);
     expect(trapDamage(3, fixedRng(0))).toBe(3); // 4 - floor(3/3) = 3
+  });
+});
+
+describe("status powers", () => {
+  it("rogueBleedPower: 3 + floor(level/2)", () => {
+    expect(rogueBleedPower(1)).toBe(3);
+    expect(rogueBleedPower(10)).toBe(8);
+  });
+
+  it("mageBurnPower: max(3, floor(mag*0.45))", () => {
+    expect(mageBurnPower(12)).toBe(5); // floor(5.4)
+    expect(mageBurnPower(2)).toBe(3); // floor(0.9) → piso 3
+  });
+
+  it("witchBurnPower: max(3, floor(mag*0.4))", () => {
+    expect(witchBurnPower(12)).toBe(4); // floor(4.8)
+    expect(witchBurnPower(2)).toBe(3);
+  });
+
+  it("beastBleedPower: max(2, floor(level*0.5))", () => {
+    expect(beastBleedPower(3)).toBe(2);
+    expect(beastBleedPower(10)).toBe(5);
+  });
+
+  it("venomBleedPower: max(1, floor(level*0.4)), defaulting unknown level to 1", () => {
+    expect(venomBleedPower(3)).toBe(1);
+    expect(venomBleedPower(10)).toBe(4);
+    expect(venomBleedPower(undefined)).toBe(1);
   });
 });

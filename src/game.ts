@@ -18,7 +18,7 @@ import {
 } from "./core/rng";
 import { checksum, migrateRun } from "./core/save";
 import { findPathBFSGrid } from "./core/pathfinding";
-import { attackRoll, applyCrit, guardedDamage, specialDamage, summonDamage, trapDamage, xpForLevel } from "./core/combat";
+import { attackRoll, applyCrit, guardedDamage, specialDamage, summonDamage, trapDamage, xpForLevel, rogueBleedPower, mageBurnPower, witchBurnPower, beastBleedPower, venomBleedPower } from "./core/combat";
 import { generateDungeon, isWalkable, revealFog, isDiscovered, computeDijkstraMap, nextStepFromDijkstra, findFreeTile, ensureDungeonRuntimeState } from "./core/dungeon";
 import { resolveEventChoice } from "./core/events";
 import { buildShopOfferings } from "./core/shop";
@@ -3615,7 +3615,7 @@ player.hp = Math.max(0, player.hp - dmg);
           hitStop(dmg >= 8 ? CONFIG.HIT_STOP_HEAVY : CONFIG.HIT_STOP_LIGHT);
           addLog(`${currentEnemy.name} acerta você com ${dmg} de dano!`, "red");
           if (currentEnemy.affix === "venomous") {
-            addStatus(player, "bleed", 3, Math.max(1, Math.floor((currentEnemy.level || 1) * 0.4)));
+            addStatus(player, "bleed", 3, venomBleedPower(currentEnemy.level));
             addLog("O ferimento SANGRA!", "red");
           }
           if (player.combo > 0) {
@@ -3940,7 +3940,7 @@ function actionSurge() {
   if (Math.abs(st.ex - st.px) > Math.abs(st.ey - st.py)) st.facing = st.ex > st.px ? "right" : "left";
   else st.facing = st.ey > st.py ? "down" : "up";
   let dmg = attackRoll(player.atk, currentEnemy.def, { variance: 4, min: 2 });
-  dmg = Math.floor(dmg * 1.6);
+  dmg = Math.floor(dmg * CONFIG.ACTION_SURGE_DMG_MULT);
   player.momentum = 0;
   playSfx("boom");
   triggerSurgeScreenFx();
@@ -3988,21 +3988,21 @@ function actionSpecialAttack() {
     dmg = specialDamage(specStats);
     if (critical) dmg = applyCrit(dmg, 1, CONFIG.ROGUE_SPECIAL_CRIT_MULT);
     message = "Punhal Sombrio!";
-    addStatus(currentEnemy, "bleed", 3, 3 + Math.floor(player.level / 2));
+    addStatus(currentEnemy, "bleed", 3, rogueBleedPower(player.level));
   } else if (player.classKey === "mage") {
     dmg = specialDamage(specStats);
     message = "Raio Arcano!";
-    addStatus(currentEnemy, "burn", 2, Math.max(3, Math.floor(player.mag * 0.45)));
+    addStatus(currentEnemy, "burn", 2, mageBurnPower(player.mag));
   } else if (player.classKey === "beastmaster") {
     dmg = specialDamage(specStats);
     const beastDmg = summonDamage(player.level);
     dmg += beastDmg;
     message = `Chamado da Selva! Seu lobo ataca por ${beastDmg}!`;
-    if (chance(CONFIG.BEAST_BLEED_CHANCE)) addStatus(currentEnemy, "bleed", 2, Math.max(2, Math.floor(player.level * 0.5)));
+    if (chance(CONFIG.BEAST_BLEED_CHANCE)) addStatus(currentEnemy, "bleed", 2, beastBleedPower(player.level));
   } else if (player.classKey === "witch") {
     dmg = specialDamage(specStats);
     message = "Olho do Caos!";
-    addStatus(currentEnemy, "burn", 3, Math.max(3, Math.floor(player.mag * 0.4)));
+    addStatus(currentEnemy, "burn", 3, witchBurnPower(player.mag));
     player.hp = Math.min(player.maxHp, player.hp + Math.floor(dmg * CONFIG.WITCH_HEAL_RATIO));
     addLog(`Você recupera ${Math.floor(dmg * CONFIG.WITCH_HEAL_RATIO)} PV pelo sacrifício.`, "green");
   }
@@ -5063,21 +5063,21 @@ function commitAttackSwing(useSpecial, timingFrac = -1) {
       dmg = specialDamage(specStats);
       if (critical) dmg = applyCrit(dmg, 1, CONFIG.ROGUE_SPECIAL_CRIT_MULT);
       message = critical ? "Punhal Sombrio! Acerto crítico nas costelas da sombra!" : "Punhal Sombrio! O inimigo quase escapou.";
-      addStatus(currentEnemy, "bleed", 3, 3 + Math.floor(player.level / 2));
+      addStatus(currentEnemy, "bleed", 3, rogueBleedPower(player.level));
     } else if (player.classKey === "mage") {
       dmg = specialDamage(specStats);
       message = "Raio Arcano! A masmorra acende em azul impossível.";
-      addStatus(currentEnemy, "burn", 2, Math.max(3, Math.floor(player.mag * 0.45)));
+      addStatus(currentEnemy, "burn", 2, mageBurnPower(player.mag));
     } else if (player.classKey === "beastmaster") {
       dmg = specialDamage(specStats);
       const beastDmg = summonDamage(player.level);
       message = `Chamado da Selva! Seu lobo espectral ataca por ${beastDmg} e você golpeia por ${dmg}!`;
       dmg += beastDmg;
-      if (chance(CONFIG.BEAST_BLEED_CHANCE)) { addStatus(currentEnemy, "bleed", 2, Math.max(2, Math.floor(player.level * 0.5))); message += " O inimigo sangra."; }
+      if (chance(CONFIG.BEAST_BLEED_CHANCE)) { addStatus(currentEnemy, "bleed", 2, beastBleedPower(player.level)); message += " O inimigo sangra."; }
     } else if (player.classKey === "witch") {
       dmg = specialDamage(specStats);
       message = "Olho do Caos! Chamas roxas consomem o inimigo!";
-      addStatus(currentEnemy, "burn", 3, Math.max(3, Math.floor(player.mag * 0.4)));
+      addStatus(currentEnemy, "burn", 3, witchBurnPower(player.mag));
       player.hp = Math.min(player.maxHp, player.hp + Math.floor(dmg * CONFIG.WITCH_HEAL_RATIO));
       message += ` Você recupera ${Math.floor(dmg * CONFIG.WITCH_HEAL_RATIO)} PV pelo sacrifício.`;
     }
@@ -5096,7 +5096,7 @@ function commitAttackSwing(useSpecial, timingFrac = -1) {
       if (critical) dmg = applyCrit(dmg, 1, CONFIG.NORMAL_CRIT_MULT);
       message = critical ? "Ataque crítico!" : "Você ataca.";
     }
-    if (critical && player.classKey === "rogue") addStatus(currentEnemy, "bleed", 3, 3 + Math.floor(player.level / 2));
+    if (critical && player.classKey === "rogue") addStatus(currentEnemy, "bleed", 3, rogueBleedPower(player.level));
   }
 
   const burstActive = player.momentum >= CONFIG.MOMENTUM_MAX;
@@ -5112,7 +5112,7 @@ function commitAttackSwing(useSpecial, timingFrac = -1) {
     player.momentum = Math.min(CONFIG.MOMENTUM_MAX, player.momentum + CONFIG.MOMENTUM_GAIN_ATTACK);
   }
 if (burstActive) {
-    dmg = Math.floor(dmg * 1.5);
+    dmg = Math.floor(dmg * CONFIG.BURST_DMG_MULT);
     critical = true;
     player.momentum = 0;
     message = "SURTO! Um golpe devastador de pura energia!";
@@ -5224,8 +5224,8 @@ currentEnemy.phase2 = true;
   currentEnemy.name = "Guardião Rubro, Forma Real";
   currentEnemy.maxHp = Math.max(currentEnemy.maxHp, Math.round(currentEnemy.maxHp * 1.15));
   currentEnemy.hp = currentEnemy.maxHp;
-  currentEnemy.atk = Math.round(currentEnemy.atk * 1.35);
-  currentEnemy.def = Math.round(currentEnemy.def * 1.2);
+  currentEnemy.atk = Math.round(currentEnemy.atk * CONFIG.BOSS_PHASE2_ATK_MULT);
+  currentEnemy.def = Math.round(currentEnemy.def * CONFIG.BOSS_PHASE2_DEF_MULT);
   currentEnemy.phase2 = true;
   const x = sxFor(currentEnemy.x), y = syFor(currentEnemy.y);
   burst(x, y, COLORS.red, 30, "spark");
@@ -5337,7 +5337,7 @@ if (blocked) {
     addLog("O dano interrompeu seu ritmo! Combo perdido.", "muted");
   }
   if (currentEnemy && currentEnemy.affix === "venomous" && !blocked) {
-    addStatus(player, "bleed", 3, Math.max(1, Math.floor((currentEnemy.level || 1) * 0.4)));
+    addStatus(player, "bleed", 3, venomBleedPower(currentEnemy.level));
     addLog(`${currentEnemy.name} envenena a lâmina! Você está sangrando.`, "red");
   }
 player.hitPulse = blocked ? 6 : 10;
@@ -5412,7 +5412,7 @@ function doBossPattern() {
       const dmg = effectiveIncomingDamage(attackRoll(charged.power, player.def, { atkMult: 0.7, variance: 0, roundAtk: true }));
       player.hp = Math.max(0, player.hp - dmg);
       player.hitPulse = 10;
-      addStatus(player, "burn", 2, Math.max(2, Math.floor(player.maxHp * 0.04)));
+      addStatus(player, "burn", 2, Math.max(2, Math.floor(player.maxHp * CONFIG.BOSS_BURN_POWER_RATIO)));
       addLog(`Rajada ardente! -${dmg} PV e você QUEIMA.`, "red");
       spawnFloatingText(x, y, `-${dmg}`, COLORS.orange);
       burst(x, y, COLORS.orange, 18, "spark");
@@ -5459,7 +5459,7 @@ const drain = effectiveIncomingDamage(attackRoll(boss.atk, player.def, { atkMult
     const dmg = effectiveIncomingDamage(attackRoll(boss.atk, player.def, { atkMult: 0.9, variance: 0, defDiv: 1 }));
     player.hp = Math.max(0, player.hp - dmg);
     player.hitPulse = 10;
-    addStatus(player, "burn", 2, Math.max(2, Math.floor(player.maxHp * 0.04)));
+    addStatus(player, "burn", 2, Math.max(2, Math.floor(player.maxHp * CONFIG.BOSS_BURN_POWER_RATIO)));
     addLog(`${boss.name} coça o ar em chamas rubras! -${dmg} PV e você QUEIMA.`, "red");
     spawnFloatingText(x, y, `-${dmg}`, COLORS.orange);
     burst(x, y, COLORS.orange, 18, "spark");
@@ -5574,7 +5574,7 @@ function enemyTurn() {
     spawnFloatingText(sxFor(currentEnemy.x), syFor(currentEnemy.y), `+${regen}`, COLORS.green);
   }
   if (currentEnemy.affix === "regenerating" && currentEnemy.hp < currentEnemy.maxHp) {
-    const regen = Math.max(1, Math.round(currentEnemy.maxHp * 0.05));
+    const regen = Math.max(1, Math.round(currentEnemy.maxHp * CONFIG.REGENERATING_HEAL_RATIO));
     currentEnemy.hp = Math.min(currentEnemy.maxHp, currentEnemy.hp + regen);
     addLog(`${currentEnemy.name} regenera ${regen} PV.`, "green");
     spawnFloatingText(sxFor(currentEnemy.x), syFor(currentEnemy.y), `+${regen}`, COLORS.green);
@@ -7306,6 +7306,18 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
           nextXp: player.nextXp
         } : null,
         scaling: { floorPerFloor: CONFIG.FLOOR_SCALE_PER_FLOOR, bossPerFloor: CONFIG.BOSS_SCALE_PER_FLOOR, enemyDefPerFloor: CONFIG.ENEMY_DEF_SCALE_PER_FLOOR },
+        debugBalanceConstants: () => ({
+          guardingMult: CONFIG.GUARDING_DAMAGE_MULT,
+          perfectDivisor: CONFIG.PERFECT_BLOCK_DIVISOR,
+          critMult: CONFIG.NORMAL_CRIT_MULT,
+          weakMult: CONFIG.ELEMENT_WEAK_MULT,
+          resistMult: CONFIG.ELEMENT_RESIST_MULT,
+          surgeMult: CONFIG.ACTION_SURGE_DMG_MULT,
+          burstMult: CONFIG.BURST_DMG_MULT,
+          phase2AtkMult: CONFIG.BOSS_PHASE2_ATK_MULT,
+          phase2DefMult: CONFIG.BOSS_PHASE2_DEF_MULT,
+          captureBase: CONFIG.CAPTURE_BASE_CHANCE
+        }),
         accessibility: { colorBlindMode, highContrast, reduceFlash, uiScale, difficulty, dmgMult: getDifficultyDamageMult(), bonusPotions: getDifficultyBonusPotions(), startGold: getDifficultyStartGold(), potions: player ? player.potions : null },
         debugSetDifficulty: (mode) => { difficulty = ["normal", "easy", "story"].includes(mode) ? mode : "normal"; applyAccessibilitySettings(); return { difficulty, dmgMult: getDifficultyDamageMult(), potions: player ? player.potions : null }; },
         debugSetAccessibility: (patch) => {

@@ -112,3 +112,33 @@ export function summonDamage(level, rng: Rng = Math.random) {
   const base = CONFIG.BEAST_DAMAGE_MIN + Math.floor(rng() * (CONFIG.BEAST_DAMAGE_MAX - CONFIG.BEAST_DAMAGE_MIN + 1));
   return Math.max(2, base + Math.floor(level * 0.8));
 }
+
+// ---------------------------------------------------------------------------
+// Poderes de status por classe/tipo — fórmulas duplicadas entre os 2 modos de
+// combate (ação e turnos), agora com fonte única.
+// ---------------------------------------------------------------------------
+
+// Sangramento do Ladino: 3 + floor(level/2).
+export function rogueBleedPower(level) {
+  return 3 + Math.floor(level / 2);
+}
+
+// Queimadura do Mago: max(3, floor(mag*0.45)).
+export function mageBurnPower(mag) {
+  return Math.max(3, Math.floor(mag * 0.45));
+}
+
+// Queimadura da Bruxa: max(3, floor(mag*0.4)).
+export function witchBurnPower(mag) {
+  return Math.max(3, Math.floor(mag * 0.4));
+}
+
+// Sangramento do lobo do Domador: max(2, floor(level*0.5)).
+export function beastBleedPower(level) {
+  return Math.max(2, Math.floor(level * 0.5));
+}
+
+// Sangramento do afixo Venenoso: max(1, floor(level*0.4)).
+export function venomBleedPower(level) {
+  return Math.max(1, Math.floor((level || 1) * 0.4));
+}
