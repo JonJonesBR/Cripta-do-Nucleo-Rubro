@@ -22,6 +22,7 @@ import { attackRoll, applyCrit, guardedDamage, specialDamage, summonDamage, trap
 import { generateDungeon, isWalkable, revealFog, isDiscovered, computeDijkstraMap, nextStepFromDijkstra, findFreeTile, ensureDungeonRuntimeState } from "./core/dungeon";
 import { resolveEventChoice } from "./core/events";
 import { buildShopOfferings } from "./core/shop";
+import { playerElementForClass, elementMultiplier, assignEnemyElement, applyEliteAffix } from "./core/elements";
 
 "use strict";
 
@@ -342,41 +343,8 @@ if (typeof s.gameSeed === "string") { setGameSeed(s.gameSeed); }
 
 
 
-function applyEliteAffix(enemy) {
-  const affix = ELITE_AFFIXES[rand(0, ELITE_AFFIXES.length - 1)];
-  enemy.affix = affix.id;
-  enemy.eliteBaseName = enemy.name;
-  enemy.name = enemy.name + " [" + affix.name + "]";
-  enemy.maxHp = Math.round(enemy.maxHp * affix.hpMult);
-  enemy.hp = enemy.maxHp;
-  enemy.def += (affix.defBonus || 0);
-  enemy.atk = Math.round(enemy.atk * (affix.atkMult || 1));
-  enemy.color = affix.color;
-  return enemy;
-}
-
-function assignEnemyElement(enemy) {
-  const prof = ENEMY_ELEMENT_BY_KIND[enemy.kind] || { element: "physical", weak: "arcane", resist: "chaos" };
-  enemy.element = prof.element;
-  enemy.elementWeak = prof.weak;
-  enemy.elementResist = prof.resist;
-  return enemy;
-}
-
 function getPlayerElement() {
-  if (!player) return "physical";
-  if (player.classKey === "mage") return "arcane";
-  if (player.classKey === "witch") return "chaos";
-  if (player.classKey === "warrior") return "fire";
-  if (player.classKey === "rogue") return "ice";
-  return "physical";
-}
-
-function elementMultiplier(attackElement, target) {
-  if (!target) return 1;
-  if (target.elementWeak && target.elementWeak === attackElement) return CONFIG.ELEMENT_WEAK_MULT;
-  if (target.elementResist && target.elementResist === attackElement) return CONFIG.ELEMENT_RESIST_MULT;
-  return 1;
+  return playerElementForClass(player ? player.classKey : undefined);
 }
 
 function spawnEnemiesAndItems(dungeon, enemies, items, player, exitTile, currentFloor, runStats, meta) {
