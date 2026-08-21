@@ -4377,8 +4377,12 @@ function updateTooltip() {
   }
 }
 
+// Matriz de ocupação das patrulhas reutilizada entre chamadas (evita alocar
+// 42×42 a cada passo do jogador).
+const patrolOccupied = Array.from({ length: CONFIG.MAP_H }, () => Array(CONFIG.MAP_W).fill(false));
+
 function updateEnemyPatrols() {
-  const patrolOccupied = Array.from({ length: CONFIG.MAP_H }, () => Array(CONFIG.MAP_W).fill(false));
+  for (let y = 0; y < CONFIG.MAP_H; y++) patrolOccupied[y].fill(false);
   for (let i = 0; i < enemies.length; i++) {
     const e = enemies[i];
     if (e.alive) patrolOccupied[e.y][e.x] = true;

@@ -4,7 +4,19 @@
 > com escopo, entregáveis e critérios de aceite. Ordem recomendada = da base para
 > o topo: o que reduz risco primeiro vem primeiro.
 >
-> Estado: **proposto** (aguardando aprovação de prioridades).
+> Estado: **concluído** (Fases 1–6 implementadas e verificadas em 2026-08-21; Fase 7 não aplicável — repo não publicado).
+
+## Histórico de execução
+
+- **Fase 1 — Controle de versão:** ✅ git (branch `main`, baseline `773a718`), legado arquivado em `legacy/`, `npm run check`.
+- **Fase 2 — Documentação:** ✅ `README.md`, artefato único em `release/` (`singlefile.mjs` apontando para lá).
+- **Fase 3 — Unificar fórmulas:** ✅ `core/combat.ts` com `attackRoll`/`specialDamage`/`summonDamage`/`trapDamage` (CONFIG 4..8, corrigido drift) + 13 testes dourados; zero fórmulas inline de dano em `game.ts`.
+- **Fase 4 — Extração incremental:** ✅ 4a `core/dungeon.ts` (+12 testes) · 4b `core/events.ts` + `core/shop.ts` (+26 testes) · 4c `core/elements.ts` (+7) · 4d `data/talents.ts`, `core/monsters.ts`, `core/relics.ts` (+17) · 4e `core/ai.ts` (+10).
+- **Fase 5 — Testes e balance:** ✅ poderes de status em `core/combat.ts`, multiplicadores em `CONFIG` (data-driven), cenário e2e de coerência das constantes. Total: **114 testes unitários** (era 24) + 11 specs e2e.
+- **Fase 6 — Polimento:** ✅ favicon (SVG inline, sobrevive ao HTML único), manifest, meta/og tags; auditoria de perf: matriz de ocupação das patrulhas reutilizada (era alocada 42×42 por passo).
+- **Fase 7 — CI:** ⏭️ não aplicável — exige repo publicado no GitHub; reabrir quando houver.
+
+Cada fase foi commitada atomicamente (`git log`); `npm run check` + e2e relevantes verdes a cada passo.
 
 ---
 
