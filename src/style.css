@@ -149,7 +149,7 @@ body {
 
 #soundBtn, #pauseBtn {
   min-width: 52px;
-  min-height: 0;
+  min-height: 44px;
   padding: 0 10px;
   border-radius: 10px;
   font-size: clamp(20px, 5vw, 26px);
@@ -861,6 +861,7 @@ canvas {
   font-family: inherit;
   font-size: 0.75rem;
   padding: 4px 8px;
+  min-height: 44px;
   border-radius: 6px;
   border: 1px solid rgba(255, 212, 92, 0.4);
   background: rgba(28, 28, 64, 0.9);

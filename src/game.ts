@@ -1849,7 +1849,11 @@ function importSlot(encoded) {
     const raw = decodeURIComponent(escape(atob(compressed)));
     const payload = JSON.parse(raw);
     if (!payload?.run?.player) return false;
-    localStorage.setItem(slotKey(slotIndex), raw);
+    // Sanitização anti-XSS: dados importados são renderizados via innerHTML
+    // (lista de slots, log, painel de pausa). Escapa HTML em todas as strings
+    // para impedir injeção por save malicioso (ex.: onerror em playerName).
+    payload.run = sanitizeImportedRun(payload.run);
+    localStorage.setItem(slotKey(slotIndex), JSON.stringify(payload));
     const meta = loadMeta();
     meta.activeSlot = slotIndex;
     saveMeta(meta);
@@ -1857,6 +1861,20 @@ function importSlot(encoded) {
   } catch {
     return false;
   }
+}
+
+function sanitizeImportedRun(run) {
+  const esc = (v) => (typeof v === "string" ? v.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])) : v);
+  const walk = (o) => {
+    if (Array.isArray(o)) return o.map(walk);
+    if (o && typeof o === "object") {
+      const out = {};
+      for (const k of Object.keys(o)) out[k] = walk(o[k]);
+      return out;
+    }
+    return esc(o);
+  };
+  return walk(run);
 }
 
 function getMaxSlots() {
@@ -1940,7 +1958,7 @@ function promptImportSlot() {
   const text = prompt("Cole o código de save exportado (CRIPTA_RUN_...):");
   if (!text) return;
   const parts = text.split("_");
-  if (parts.length < 3) { addLog("Código inválido.", "red"); return; }
+  if (parts.length < 3) { addLog("Código inválido.", "red"); showToast("FALHA AO IMPORTAR", 1200); return; }
   const slotIndex = parseInt(parts[2], 10);
   const ok = importSlot(text);
   if (ok) {
@@ -1949,6 +1967,7 @@ function promptImportSlot() {
     renderSlotList();
   } else {
     addLog("Falha ao importar save.", "red");
+    showToast("FALHA AO IMPORTAR", 1200);
   }
 }
 
