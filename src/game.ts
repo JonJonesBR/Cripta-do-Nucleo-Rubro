@@ -1483,14 +1483,14 @@ const hpRatio = currentEnemy.hp / currentEnemy.maxHp;
   if (currentEnemy.elementWeak || currentEnemy.elementResist) {
     const wInfo = ELEMENT_AFFINITY[currentEnemy.elementWeak];
     const rInfo = ELEMENT_AFFINITY[currentEnemy.elementResist];
-    const eX = boxX + CONFIG.COMBAT_PANEL_TEXT_X, eY = boxY + CONFIG.COMBAT_PANEL_TEXT_Y_STATUS + 13;
+    const eX = boxX + CONFIG.COMBAT_PANEL_TEXT_X, eY = boxY + CONFIG.COMBAT_PANEL_TEXT_Y_STATUS + 9;
     if (wInfo) drawPixelText(ctx, `FRACO: ${wInfo.icon} ${wInfo.name}`, eX, eY, wInfo.color, 1);
     if (rInfo) drawPixelText(ctx, `RESISTE: ${rInfo.icon} ${rInfo.name}`, eX + 13 * 9, eY, rInfo.color, 1);
   }
 
   // Timing combo meter (turn mode).
   if (combatMode === "turn" && player && player.timingCombo > 0) {
-    const tX = boxX + CONFIG.COMBAT_PANEL_TEXT_X, tY = boxY + 78;
+    const tX = boxX + CONFIG.COMBAT_PANEL_TEXT_X, tY = boxY + 110;
     drawPixelText(ctx, `ENCADEADO x${player.timingCombo} (+${Math.round(player.timingComboMult * 100)}%)`, tX, tY, COLORS.purple, 1);
   }
 
@@ -1541,18 +1541,18 @@ const hpRatio = currentEnemy.hp / currentEnemy.maxHp;
   // Enemy intent indicator — what the enemy plans to do next turn.
   if (currentEnemy && (currentEnemy.nextIntent || currentEnemy.intent)) {
     const intentInfo = currentEnemy.nextIntent || { type: "unleash", label: "GOLPE CARREGADO", color: COLORS.red };
-    const tlX = boxX + boxW - CONFIG.COMBAT_PANEL_SPRITE_X_OFFSET - 128, tlY = boxY + CONFIG.COMBAT_PANEL_TEXT_Y_NAME;
+    const tlY = boxY + CONFIG.COMBAT_PANEL_TEXT_Y_INTENT;
     const pulse = Math.sin(tick * 0.15) > 0;
     const showCharging = currentEnemy.intent && !currentEnemy.nextIntent;
     if (!showCharging || pulse) {
-      drawPixelText(ctx, `${intentInfo.label}`, tlX, tlY, intentInfo.color, 1);
-      drawPixelText(ctx, "PRÓXIMO MOVE →", tlX - 12 * 14, tlY, COLORS.muted || COLORS.text, 1);
+      const labelW = (intentInfo.label.length + 2) * 12;
+      drawPixelText(ctx, `→ ${intentInfo.label}`, boxX + boxW - CONFIG.COMBAT_PANEL_SPRITE_X_OFFSET - 8 - labelW, tlY, intentInfo.color, 1);
     }
   }
 
   // Telegraph indicator
   if (currentEnemy && currentEnemy.intent && !currentEnemy.nextIntent) {
-    const tlX = boxX + boxW - CONFIG.COMBAT_PANEL_SPRITE_X_OFFSET - 92, tlY = boxY + CONFIG.COMBAT_PANEL_TEXT_Y_NAME;
+    const tlX = boxX + boxW - CONFIG.COMBAT_PANEL_SPRITE_X_OFFSET - 92, tlY = boxY + CONFIG.COMBAT_PANEL_TEXT_Y_INTENT;
     if (Math.sin(tick * 0.15) > 0) {
       drawPixelText(ctx, "! CARREGANDO !", tlX, tlY, COLORS.orange, 1);
     }
@@ -1560,7 +1560,7 @@ const hpRatio = currentEnemy.hp / currentEnemy.maxHp;
 
   // Synergy indicator
   if (currentEnemy && currentEnemy.synergy && currentEnemy.synergy.allies.length > 0) {
-    const sX = boxX + CONFIG.COMBAT_PANEL_TEXT_X, sY = boxY + 66;
+    const sX = boxX + CONFIG.COMBAT_PANEL_TEXT_X, sY = boxY + 102;
     drawPixelText(ctx, `ALIADOS: ${currentEnemy.synergy.allies.length}`, sX, sY, COLORS.purple, 1);
     drawPixelText(ctx, `+${currentEnemy.synergy.auraAtk}ATK${currentEnemy.synergy.regen > 0 ? " +regen" : ""}`, sX + 12 * 9, sY, COLORS.orange, 1);
   }
@@ -1568,7 +1568,7 @@ const hpRatio = currentEnemy.hp / currentEnemy.maxHp;
   // Stagger meter
   if (currentEnemy && currentEnemy.stagger > 0) {
     const barX = boxX + CONFIG.COMBAT_PANEL_TEXT_X, barW = boxW - 40;
-    const barY = boxY + 56;
+    const barY = boxY + 94;
     ctx.fillStyle = "rgba(5,5,16,0.85)";
     ctx.fillRect(barX, barY, barW, 4);
     const fill = Math.min(1, currentEnemy.stagger / CONFIG.STAGGER_STACKS_TO_BREAK);
@@ -2120,7 +2120,7 @@ let camera = { x: 0, y: 0, rx: 0, ry: 0 };
 let mapCache = null;
 let lightGradientCache = null;
 let playerLightAuraCache = null;
-let logLines = ["Escolha uma classe para entrar na cripta."];
+let logLines = [];
 let shake = 0;
 let flash = 0;
 let slowMoTicks = 0;
@@ -3118,7 +3118,7 @@ function refreshCommandMenu() {
       btn.textContent = player.captureCrystals <= 0 ? "SEM CRISTAL" : `CAPTURAR x${player.captureCrystals}`;
     } else {
       disabled = player.stamina < CONFIG.ATTACK_STAMINA_COST;
-      btn.textContent = `ATAÇAR (${player.stamina}/${player.maxStamina} fôlego)`;
+      btn.textContent = `ATACAR (${player.stamina}/${player.maxStamina} fôlego)`;
     }
     btn.disabled = disabled;
   });
@@ -4253,7 +4253,7 @@ function drawActionBolts(ctx) {
 function drawActionCombatHud(ctx) {
   const st = actionState;
   const r = getActionArenaRect();
-  const bx = r.x, by = r.y - 10;
+  const bx = r.x, by = r.y + 2;
   const atkReady = st && st.atkCd <= 0;
   const dashReady = st && st.dashCd <= 0;
   const barW = 46;
@@ -4279,7 +4279,7 @@ drawPixelText(ctx, "ESQ", bx + barW * 2 + 28, by, dashReady ? "#5ca8ff" : "#7777
       ctx.fillRect(px0 + i * 6, by + 1, 4, 4);
     }
   }
-  drawPixelText(ctx, "A: ATACAR   B: ESQUIVAR", Math.floor(CONFIG.CANVAS_W / 2), CONFIG.CANVAS_H - 8, COLORS.text, 1);
+  drawPixelText(ctx, "A: ATACAR · B: ESQ", 24, CONFIG.CANVAS_H - 8, COLORS.text, 1);
   const pct = Math.min(1, player.momentum ? player.momentum / CONFIG.MOMENTUM_MAX : 0);
   if (pct >= 1) {
     const label = player.specialCd <= 0 ? "ESPECIAL PRONTA! (A)" : "SURTO PRONTO! (A)";
