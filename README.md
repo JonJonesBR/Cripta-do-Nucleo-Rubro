@@ -48,8 +48,10 @@
 | **Movimento** | Setas / `WASD` | D-Pad virtual / Deslizar o dedo (Swipe) |
 | **Atacar / Confirmar** | `Z` / `Enter` | Botão virtual **A** |
 | **Habilidade / Poção** | `X` / `Espaço` | Botão virtual **B** |
-| **Pausar / Menu** | `Esc` / `P` | Botão **Ⅱ** (Topo) |
+| **Pausar / Menu** | `Esc` | Botão **Ⅱ** (Topo) |
 | **Inspecionar / Usar / Quebrar / Desarmar** | Pisar / `Z` | Botão contextual **A** (`DESCER` / `USAR` / `QUEBRAR` / `DESARMAR`) |
+| **Troca Rápida de Lutadores** | `1` / `2` / `3` / `4` | Menu de comandos / Roster |
+| **Poção Rápida** | `Q` / `P` | Botão virtual **B** / Menu |
 
 ---
 
