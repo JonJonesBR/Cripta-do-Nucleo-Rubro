@@ -57,3 +57,21 @@ test("perfect dodge: dodging right at the enemy hit grants vulnerable counter wi
   expect(g.juice.hitsTaken).toBe(beforeHits);
   expect(errors).toEqual([]);
 });
+
+test("flash counter: attacking after perfect dodge executes potent counter-slash", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", e => errors.push(String(e)));
+  await startRun(page);
+  await page.evaluate(() => window.__GAME__.debugForceCombat("golem", "action"));
+  await expect.poll(() => page.evaluate(() => window.__GAME__.state)).toBe("combat");
+
+  await page.evaluate(() => window.__GAME__.debugForcePerfectDodge());
+  await page.waitForTimeout(200);
+
+  const initialHp = await page.evaluate(() => window.__GAME__.enemyHp);
+  await page.evaluate(() => window.__GAME__.debugPlayerAttack());
+  const finalHp = await page.evaluate(() => window.__GAME__.enemyHp);
+
+  expect(finalHp === null || finalHp < initialHp).toBe(true);
+  expect(errors).toEqual([]);
+});

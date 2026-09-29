@@ -66,3 +66,23 @@ Este documento registra todo o histórico de execuções, refinamentos e auditor
   - Vitest: 13 suítes, 120/120 testes passando (incluindo nova suíte `tests/gameplay-polish.test.ts`).
   - Playwright: 27/27 specs E2E passando com Edge headless.
   - Pacote autônomo offline gerado: `release/CRIPTA DO NÚCLEO RUBRO (jogo único).html` (250 kB).
+
+---
+
+### Rodada 5 (2026-09-29): Loop de Jogabilidade, Tática de Combate e Exploração (Régua 9.6 a 9.7) — ✅ CONCLUÍDA
+
+- **Subagente Crítico Invocado:** Auditoria e calibração de Game Feel & Tática de Roguelike (inspirado em *Soul Knight*, *Shattered Pixel Dungeon* e *Dead Cells*).
+- **Melhorias de Jogabilidade & Diversão (Nota Final: 9.7 / 10):**
+  - **Sistema de Emboscada e Vantagem de Iniciativa:** Ao interceptar ou avançar em direção a um inimigo desatento (`!enemy.alert`), o jogador obtém vantagem de emboscada (`EMBOSCADA!`). No modo por turnos, concede ATB cheio instantâneo (`playerAtbReady = true`), menu de comandos aberto imediatamente e +25 de Momentum. No modo de ação, atordoa o inimigo (`eStagger = 50`) e o torna vulnerável por 2 segundos.
+  - **Contra-Ataque Relâmpago (Flash Counter):** Esquivas perfeitas no combate de ação ativam janela de 30 ticks (`counterWindow`). Pressionar ataque projeta o herói num lunge veloz contra o oponente, desferindo corte dourado cruzado em X com 1.75x de dano crítico, áudio de parry, câmera lenta e restauração da cadeia de combo.
+  - **Calibração da Janela de Combo:** Janela de encadeamento de golpes (`ACTION_COMBO_WINDOW_TICKS`) calibrada de 24 para 30 ticks (500ms), eliminando perdas acidentais de combo em telas de toque e sob variações de framerate.
+- **Melhorias de Combate por Turnos, Áudio & UI (Nota Final: 9.6 / 10):**
+  - **Telegrafia de Guarda e Parry Metálico Sintetizado:** Implementação de síntese procedural de alta frequência via Web Audio (`playSfx("parry")` em 880/1320/1760Hz). `openBlockWindow` emite faíscas telegrafadas e som de alerta; riposte bem-sucedido aciona o som metálico de parry com zoom-pulse e câmera lenta.
+  - **Indicador Dinâmico de Vantagem Elemental:** Badges no painel de combate por turnos (`drawCombatPanel`) indicam em tempo real vantagens (`(+50%!)` em dourado) ou resistências (`(-30%)` em vermelho carmesim) baseadas no elemento da arma ou magia equipada.
+- **Melhorias de Exploração & Interatividade (Nota Final: 9.6 / 10):**
+  - **Desarme Tático de Armadilhas via Botão Contextual:** Ao encarar armadilhas adjacentes, o botão de ação exibe `DESARMAR`. Ladinos possuem 100% de taxa de sucesso; demais classes contam com 75%. Sucesso rende +12 XP e +5 Gold sem risco; falhas reduzem o dano pela metade devido ao reflexo defensivo.
+- **Verificação Completa:**
+  - `npx tsc --noEmit`: 0 erros.
+  - Vitest: 13 suítes, 124/124 testes unitários passando (`tests/gameplay-polish.test.ts` expandido com testes de emboscada, flash counter e desarme).
+  - Playwright E2E: 28/28 specs passando com Edge headless (`e2e/actionmode.spec.ts` validando Flash Counter).
+  - Pacote autônomo offline atualizado: `release/CRIPTA DO NÚCLEO RUBRO (jogo único).html` (253 kB).

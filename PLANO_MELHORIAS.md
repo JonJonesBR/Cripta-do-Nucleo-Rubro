@@ -1,8 +1,8 @@
-# Plano de Melhorias — Cripta do Núcleo Rubro (Rodada 3: Elevação UX/UI, Jogabilidade, Gráficos e Diversão)
+# Plano de Melhorias — Cripta do Núcleo Rubro (Rodada 5: Loop de Jogabilidade, Tática de Combate e Exploração)
 
-> **Meta da Rodada:** Elevar todos os eixos do jogo (UX, UI, Jogabilidade, Diversão, Gráficos) do patamar atual (~6.9 - 7.2) para notas de excelência entre **9.0 e 9.5 / 10** (90 a 95 / 100), com verificações rigorosas, testes automatizados e anti-regressão.
+> **Meta da Rodada:** Elevar a jogabilidade e o loop principal de jogo (combate turnos, combate de ação e exploração da masmorra) para o patamar de excelência **9.6 a 9.7 / 10**, refinando a responsividade tática, timing de combate e agência do jogador na masmorra.
 >
-> **Estado:** 🚀 Em Execução (Fase 0 concluída; Fases de Implementação ativas).
+> **Estado:** ✅ Concluído com Sucesso (Gates A e B aprovados, 124 testes unitários e 28 specs E2E passando).
 
 ---
 
@@ -16,47 +16,37 @@
 
 ---
 
-## 2. Fases de Execução da Rodada
+## 2. Fases de Execução da Rodada 5
 
-### Fase A — UX & Controles Responsivos (Alvo: 9.2 / 10)
-- **A1. Deadzone e suavização do D-Pad virtual:**
-  - Adicionar deadzone neutra de 18px no centro do D-Pad para impedir passos involuntários ao tocar levemente fora do centro.
-  - Ajustar repeat delay para evitar overstepping em armadilhas.
-  - Suportar ângulo de vetor/movimentação diagonal no modo ação para controles touch.
-- **A2. Cancelamento seguro do menu de comandos:**
-  - Em `cancelCommandMenu`, fechar o menu sem penalizar o jogador com perda de turno ou dano grátis (`playerAtbReady` permanece ativo).
-- **A3. Interação contextual prioritária no botão A:**
-  - Se o jogador estiver sobre um item/baú/altar/escada (`itemAt(player.x, player.y)`), a ação imediata é interagir com o piso atual antes de inspecionar a célula à frente.
+### Fase A — Estratégia & Furtividade na Masmorra (Alvo: 9.6 / 10)
+- **A1. Sistema de Emboscada e Vantagem de Iniciativa:**
+  - Jogador que avança em direção a um monstro desatento (`!enemy.alert`) recebe Iniciativa de Emboscada imediata.
+  - No Modo Turnos: início imediato com ATB cheio (`playerAtbReady = true`), +25 Momentum e menu aberto antes de qualquer ação do monstro.
+  - No Modo Ação: monstro inicia atordoado (`eStagger = 50`) e vulnerável por 2 segundos, conferindo grande vantagem tática.
+- **A2. Desarme Tático de Armadilhas via Interação Contextual:**
+  - O botão contextual passa a exibir `DESARMAR` ao encarar uma armadilha adjacente.
+  - Ladinos possuem 100% de maestria no desarme; demais classes contam com 75% de sucesso.
+  - Neutralização concede +12 XP e +5 de ouro das peças reaproveitadas. Em caso de falha, dano é reduzido pela metade pelo reflexo rápido.
 
-### Fase B — UI, Layout & Hierarquia Visual (Alvo: 9.4 / 10)
-- **B1. Centralização dinâmica do Painel de Combate:**
-  - Centralizar `drawCombatPanel` dinamicamente com base em `CONFIG.CANVAS_W` (`boxX = Math.round((CANVAS_W - boxW) / 2)`), eliminando o desalinhamento e buracos vazios em telas widescreen e tablets.
-- **B2. Indicadores e HUD de Batalha integrados:**
-  - Melhorar visibilidade das barras de vida e fôlego no Canvas com molduras e contraste 16-bit.
-  - Sincronizar badges de status e fraquezas elementais com tipografia nítida e legível.
-- **B3. Responsividade em telas pequenas:**
-  - Permitir scroll suave com `overflow-y: auto` e `max-height: 92dvh` nos modais para nunca truncar botões em telas pequenas ou celulares em paisagem/splitscreen.
+### Fase B — Game Feel, Combate de Ação & Flash Counter (Alvo: 9.7 / 10)
+- **B1. Contra-Ataque Relâmpago (Flash Counter):**
+  - Esquivas perfeitas no modo de ação ativam uma janela de contra-ataque de 30 ticks (`counterWindow`).
+  - O botão A ganha destaque e label `CONTRA-ATK!`.
+  - Golpear nessa janela projeta o herói com lunge em alta velocidade até o inimigo, desferindo corte dourado cruzado em X com 1.75x de dano crítico, sfx dedicado de parry e câmera lenta.
+- **B2. Janela de Encadeamento de Combo Suavizada:**
+  - `ACTION_COMBO_WINDOW_TICKS` ajustado para 30 ticks (500ms), eliminando descarte acidental de sequências de golpes por jitter de hardware ou latência touch.
 
-### Fase C — Jogabilidade, Diversão & Game Feel (Alvo: 9.5 / 10)
-- **C1. Janela de bloqueio e contra-ataque acessível:**
-  - Aumentar `BLOCK_WINDOW_MS` para 480ms em `src/data/config.ts` (compensando latência touch do navegador móvel) e afinar `RIPOSTE_WINDOW_FRACTION` para 0.35.
-  - Adicionar telegrafia sonora/visual sutil (brilho e som de clique metálico) antes do ataque inimigo.
-- **C2. Decaimento suave de combo:**
-  - Substituir o reset instantâneo de combo (`player.combo = 0`) por decaimento de 1 stack em danos normais, preservando a recompensa do jogador e a fluidez do ritmo de batalha.
-- **C3. Arcos de corte (slashing arcs) e impacto:**
-  - Substituir a linha reta de 1px por arcos de lâmina curvos dinâmicos no ataque (`drawActionHero`), com brilho e faíscas direcionais.
-
-### Fase D — Gráficos, Estética 16-bit & Áudio Chiptune (Alvo: 9.3 / 10)
-- **D1. Silhueta e Outlines nos sprites de personagens e monstros:**
-  - Adicionar contorno escuro de 1px nos sprites procedurais dos heróis e monstros, destacando-os com nitidez contra qualquer azulejo do piso.
-- **D2. Iluminação de tocha radial pulsante:**
-  - Aprimorar o efeito de tocha para projetar um brilho radial suave dourado ao redor do herói e das paredes, criando atmosfera autêntica de masmorra retrô.
-- **D3. Trilha sonora com canal de percussão procedural:**
-  - Enriquecer o sintetizador Web Audio adicionando um canal rítmico leve (noise drum/hi-hat simulado com ruído branco filtrado) nos compassos da exploração e da luta contra chefes.
+### Fase C — Feedback de Combate por Turnos & Áudio Chiptune (Alvo: 9.6 / 10)
+- **C1. Telegrafia de Bloqueio e Áudio Metálico de Parry:**
+  - Som procedural de alta ressonância sintetizado em Web Audio (`playSfx("parry")`) em 880Hz / 1320Hz / 1760Hz.
+  - Abertura da janela de guarda projeta fagulhas de telegrafia douradas e chime de aviso.
+  - Acerto na janela de Riposte dispara `parry`, efeito de zoom-pulse e câmera lenta satisfatória.
+- **C2. Indicador de Vantagem Elemental em Tempo Real no Painel:**
+  - Exibe badges contextuais `(+50%!)` em dourado quando o elemento ativo do jogador explora a fraqueza do monstro, ou `(-30%)` em caso de resistência.
 
 ---
 
 ## 3. Critérios de Aceite
-- `npm run check` (typecheck + 114 testes unitários) passa 100% verde sem regressões.
-- Build de produção (`npm run build`) e single-file (`npm run single`) gerados com sucesso.
-- Subagente crítico avalia e valida notas ≥ 9.0 em todos os 4 pilares.
+- `npm run check` (typecheck + 124 testes unitários) passa 100% verde sem regressões.
+- Playwright E2E (`npm run test:e2e`) com 28 specs passando em navegador real.
+- Pacote autônomo offline gerado: `release/CRIPTA DO NÚCLEO RUBRO (jogo único).html` (253 kB).

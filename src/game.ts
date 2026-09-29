@@ -233,6 +233,7 @@ function playSfx(name, opts = {}) {
     if (name === "select") tone(440, t, 0.08, "triangle", 0.04 * g);
     if (name === "clash") { tone(120, t, 0.06, "sawtooth", 0.09 * g); tone(180, t + 0.03, 0.04, "square", 0.07 * g); noise(t, 0.04, 0.08 * g); }
     if (name === "block") { tone(440, t, 0.04, "square", 0.05 * g); tone(660, t + 0.02, 0.06, "triangle", 0.04 * g); noise(t, 0.03, 0.03 * g); }
+    if (name === "parry") { tone(880, t, 0.06, "square", 0.08 * g); tone(1320, t + 0.02, 0.12, "triangle", 0.07 * g); tone(1760, t + 0.04, 0.18, "sine", 0.05 * g); noise(t, 0.04, 0.05 * g); }
     if (name === "chest") [440, 554, 659].forEach((f, i) => tone(f, t + i * 0.08, 0.14, "triangle", 0.05 * g));
     if (name === "shrine") [392, 523, 659, 784].forEach((f, i) => tone(f, t + i * 0.09, 0.2, "sine", 0.04 * g));
     if (name === "relic") [784, 988, 1175].forEach((f, i) => tone(f, t + i * 0.07, 0.15, "triangle", 0.06 * g));
@@ -1503,8 +1504,11 @@ const hpRatio = currentEnemy.hp / currentEnemy.maxHp;
     const wInfo = ELEMENT_AFFINITY[currentEnemy.elementWeak];
     const rInfo = ELEMENT_AFFINITY[currentEnemy.elementResist];
     const eX = boxX + CONFIG.COMBAT_PANEL_TEXT_X, eY = boxY + CONFIG.COMBAT_PANEL_TEXT_Y_STATUS + 9;
-    if (wInfo) drawPixelText(ctx, `FRACO: ${wInfo.icon} ${wInfo.name}`, eX, eY, wInfo.color, 1);
-    if (rInfo) drawPixelText(ctx, `RESISTE: ${rInfo.icon} ${rInfo.name}`, eX + 13 * 9, eY, rInfo.color, 1);
+    const pElem = typeof getPlayerElement === "function" ? getPlayerElement() : null;
+    const hasAdv = pElem && currentEnemy.elementWeak === pElem;
+    const hasDis = pElem && currentEnemy.elementResist === pElem;
+    if (wInfo) drawPixelText(ctx, `FRACO: ${wInfo.icon} ${wInfo.name}${hasAdv ? " (+50%!)" : ""}`, eX, eY, hasAdv ? COLORS.gold : wInfo.color, 1);
+    if (rInfo) drawPixelText(ctx, `RESISTE: ${rInfo.icon} ${rInfo.name}${hasDis ? " (-30%)" : ""}`, eX + 14 * 8, eY, hasDis ? COLORS.red : rInfo.color, 1);
   }
 
   // Timing combo meter (turn mode).
@@ -2837,7 +2841,11 @@ function tryMove(dx, dy) {
   }
 
   const enemy = occupiedByEnemy(nx, ny);
-  if (enemy) { beginCombat(enemy); return; }
+  if (enemy) {
+    const isPlayerAmbush = !enemy.alert && !enemy.boss;
+    beginCombat(enemy, false, isPlayerAmbush);
+    return;
+  }
 
   player.x = nx; player.y = ny;
   player.movePulse = 9;
@@ -3558,6 +3566,7 @@ function initActionState() {
     spawnY: r.y + r.h - 24,
     comboStep: 0,
     comboWindow: 0,
+    counterWindow: 0,
     enraged: false,
     telegraph: null,
     eRecoil: 0,
@@ -3632,6 +3641,7 @@ function updateActionCombat() {
   if (st.atkAnim > 0) st.atkAnim--;
   if (st.dashCd > 0) st.dashCd--;
   if (st.iframes > 0) st.iframes--;
+  if (st.counterWindow > 0) st.counterWindow--;
   if (st.comboWindow > 0) { st.comboWindow--; if (st.comboWindow <= 0) st.comboStep = 0; }
   const stunTurns = player.statusEffects?.stun?.turns || 0;
   if (stunTurns > 0) {
@@ -3690,6 +3700,7 @@ function updateActionEnemy() {
           if (st.iframes > 0) {
             player.momentum = Math.min(CONFIG.MOMENTUM_MAX, player.momentum + CONFIG.ACTION_PERFECT_DODGE_REWARD);
             slowMoTicks = Math.max(slowMoTicks, CONFIG.ACTION_PERFECT_DODGE_SLOWMO_TICKS + 4);
+            st.counterWindow = CONFIG.FLASH_COUNTER_WINDOW_TICKS;
             triggerZoomPulse();
             addStatus(currentEnemy, "vulnerable", 3);
             spawnFloatingText(st.px, st.py - 30, "ESQUIVA PERFEITA!", COLORS.gold, 1.5);
@@ -3734,6 +3745,7 @@ function updateActionEnemy() {
           if (perfect) {
             player.momentum = Math.min(CONFIG.MOMENTUM_MAX, player.momentum + CONFIG.ACTION_PERFECT_DODGE_REWARD);
             slowMoTicks = Math.max(slowMoTicks, CONFIG.ACTION_PERFECT_DODGE_SLOWMO_TICKS);
+            st.counterWindow = CONFIG.FLASH_COUNTER_WINDOW_TICKS;
             addStatus(currentEnemy, "vulnerable", 2);
             spawnFloatingText(st.px, st.py - 30, "ESQUIVA PERFEITA!", COLORS.gold, 1.5);
             spawnFloatingText(st.px, st.py - 46, `+${CONFIG.ACTION_PERFECT_DODGE_REWARD} MOM`, COLORS.gold);
@@ -3987,6 +3999,30 @@ function actionPlayerAttack() {
   const st = actionState;
   if (!st) return;
   if (st.atkCd > 0 || st.dashTicks > 0) return;
+  if (st.counterWindow > 0) {
+    st.counterWindow = 0;
+    st.atkCd = CONFIG.ACTION_ATK_COOLDOWN;
+    st.atkAnim = 12;
+    st.comboWindow = CONFIG.ACTION_COMBO_WINDOW_TICKS;
+    st.comboStep = Math.min(CONFIG.ACTION_COMBO_STEPS - 1, (st.comboStep || 0) + 1);
+    const dE = Math.hypot(st.ex - st.px, st.ey - st.py);
+    if (dE > 14) {
+      const nx = (st.ex - st.px) / dE, ny = (st.ey - st.py) / dE;
+      st.px = clampActionX(st.ex - nx * 14);
+      st.py = clampActionY(st.ey - ny * 14);
+    }
+    if (Math.abs(st.ex - st.px) > Math.abs(st.ey - st.py)) st.facing = st.ex > st.px ? "right" : "left";
+    else st.facing = st.ey > st.py ? "down" : "up";
+    let dmg = attackRoll(player.atk, currentEnemy.def, { atkMult: CONFIG.FLASH_COUNTER_DMG_MULT });
+    dmg = applyCrit(dmg, 1, CONFIG.NORMAL_CRIT_MULT);
+    const aElem = elementMultiplier(getPlayerElement(), currentEnemy);
+    if (aElem !== 1) dmg = Math.max(1, Math.floor(dmg * aElem));
+    showToast("CONTRA-ATAQUE!", CONFIG.TOAST_SHORT_MS);
+    playSfx("parry");
+    addLog("CONTRA-ATAQUE RELÂMPAGO! Lâmina dourada corta as sombras!", "gold");
+    applyActionHit(dmg, { critical: true, type: "counter" });
+    return;
+  }
   // Momentum cheio: habilidade especial (se pronta) ou SURTO.
   if (player.momentum >= CONFIG.MOMENTUM_MAX) {
     if (player.specialCd <= 0) { actionSpecialAttack(); return; }
@@ -4034,6 +4070,7 @@ function applyActionHit(dmg, opts = {}) {
   const type = opts.type || "normal";
   const comboStep = opts.comboStep ?? 0;
   const isFinisher = type === "finisher";
+  const isCounter = type === "counter";
   let comboOnThisHit = false;
   if (!opts.noCombo && player.combo < CONFIG.COMBO_MAX) {
     player.combo++;
@@ -4054,16 +4091,22 @@ function applyActionHit(dmg, opts = {}) {
   st.eStagger = Math.max(st.eStagger, CONFIG.ACTION_ENEMY_STAGGER_TICKS);
   st.eHit = 10;
   if (currentEnemy.hp > 0) {
-    const kb = type === "special" ? 14 : (CONFIG.ACTION_COMBO_KNOCKBACK[comboStep] || 9);
+    const kb = type === "special" ? 14 : isCounter ? 16 : (CONFIG.ACTION_COMBO_KNOCKBACK[comboStep] || 9);
     const ang = Math.atan2(st.ey - st.py, st.ex - st.px);
     st.ex = clampActionX(st.ex + Math.cos(ang) * kb);
     st.ey = clampActionY(st.ey + Math.sin(ang) * kb);
   }
   if (st.eWindup > 0) { st.eWindup = 0; st.eAttackCd = Math.max(st.eAttackCd, 20); }
-  const color = critical ? COLORS.gold : (isFinisher ? COLORS.orange : COLORS.red);
-  spawnFloatingText(st.ex, st.ey - 18, `-${dmg}`, color, critical ? 1.7 : (isFinisher ? 1.5 : 1.2));
-  burst(st.ex, st.ey, color, CONFIG.NORMAL_HIT_PARTICLE_COUNT + (isFinisher ? 6 : 0), "spark");
+  const color = isCounter || critical ? COLORS.gold : (isFinisher ? COLORS.orange : COLORS.red);
+  spawnFloatingText(st.ex, st.ey - 18, isCounter ? `CRÍT -${dmg}` : `-${dmg}`, color, isCounter ? 1.8 : critical ? 1.7 : (isFinisher ? 1.5 : 1.2));
+  burst(st.ex, st.ey, color, CONFIG.NORMAL_HIT_PARTICLE_COUNT + (isFinisher || isCounter ? 6 : 0), "spark");
   if (critical) spawnEffect("cross", st.ex, st.ey, "", COLORS.gold, { life: 8, size: 8 });
+  if (isCounter) {
+    spawnEffect("cross", st.ex, st.ey, "", COLORS.gold, { life: 14, size: 14 });
+    burst(st.ex, st.ey, COLORS.gold, 16, "spark");
+    flashOf(COLORS.gold, 6);
+    hitStop(CONFIG.HIT_STOP_MEDIUM);
+  }
   if (isFinisher) {
     spawnEffect("cross", st.ex, st.ey, "", COLORS.orange, { life: 10, size: 9 });
     burst(st.ex, st.ey, COLORS.orange, 10, "spark");
@@ -4075,13 +4118,13 @@ function applyActionHit(dmg, opts = {}) {
     spawnEffect("vapor", st.ex, st.ey - 6, "", COLORS.purple, { life: 20, size: 4 });
     flashOf(COLORS.blue, 6);
   }
-  spawnDecal(st.ex, st.ey, currentEnemy.boss ? "#a81e32" : "#7a1a2b", critical || isFinisher ? 5 : 2);
-  if (critical && !reducedMotion) { freezeFrames = CONFIG.FREEZE_FRAMES_CRIT; hapticCrit(); slowMoTicks = Math.max(slowMoTicks, 12); triggerZoomPulse(); }
+  spawnDecal(st.ex, st.ey, currentEnemy.boss ? "#a81e32" : "#7a1a2b", critical || isFinisher || isCounter ? 5 : 2);
+  if ((critical || isCounter) && !reducedMotion) { freezeFrames = CONFIG.FREEZE_FRAMES_CRIT; hapticCrit(); slowMoTicks = Math.max(slowMoTicks, 12); triggerZoomPulse(); }
   else if (isFinisher && !reducedMotion) { freezeFrames = CONFIG.FREEZE_FRAMES_HEAVY_HIT; hapticMedium(); slowMoTicks = Math.max(slowMoTicks, 10); triggerZoomPulse(); }
   else hapticLight();
-  playSfx(currentEnemy.boss ? "bossHit" : (critical ? "crit" : (isFinisher ? "boom" : "hit")), { pitch: rand(-1, 1) * 0.5 });
-  flashOf(critical ? COLORS.gold : COLORS.red, critical ? 5 : 3);
-  shakeFrom(st.px, st.py, st.ex, st.ey, critical ? 7 : (isFinisher ? 6 : 4));
+  playSfx(currentEnemy.boss ? "bossHit" : isCounter ? "parry" : (critical ? "crit" : (isFinisher ? "boom" : "hit")), { pitch: rand(-1, 1) * 0.5 });
+  flashOf(critical || isCounter ? COLORS.gold : COLORS.red, critical || isCounter ? 5 : 3);
+  shakeFrom(st.px, st.py, st.ex, st.ey, critical || isCounter ? 7 : (isFinisher ? 6 : 4));
   addLog(`${critical ? "Acerto crítico! " : ""}${opts.log || ""}${currentEnemy.name} sofre ${dmg}.${isFinisher ? " Golpe final!" : ""}`, critical ? "gold" : (isFinisher ? "orange" : "muted"));
   if (comboOnThisHit && player.combo > 1) spawnFloatingText(st.ex, st.ey - 26, `COMBO x${player.combo}`, COLORS.purple, 1.4);
   if (isFinisher) spawnFloatingText(st.ex, st.ey - 34, "FINAL!", COLORS.orange, 1.4);
@@ -4794,6 +4837,49 @@ if (item.type === "trap") {
   }
 }
 
+function disarmTrap(item) {
+  if (!item || item.used) return;
+  const isRogue = player.classKey === "rogue";
+  const disarmSuccess = isRogue || chance(CONFIG.DISARM_SUCCESS_CHANCE_DEFAULT);
+  item.used = true;
+  const itemIdx = items.indexOf(item);
+  if (itemIdx >= 0) items.splice(itemIdx, 1);
+  const ix = item.x, iy = item.y;
+  releaseItem(item);
+  const x = sxFor(ix), y = syFor(iy);
+
+  if (disarmSuccess) {
+    player.gold = (player.gold || 0) + CONFIG.DISARM_TRAP_GOLD;
+    const leveled = gainXp(player, CONFIG.DISARM_TRAP_XP);
+    addLog(`Você desarmou a armadilha com precisão! (+${CONFIG.DISARM_TRAP_XP} XP, +${CONFIG.DISARM_TRAP_GOLD} Ouro)`, "gold");
+    showToast("DESARMADA! +XP", CONFIG.TOAST_SHORT_MS);
+    burst(x, y, COLORS.gold, 10, "spark");
+    playSfx("rune");
+    if (leveled) {
+      showToast(`LEVEL UP! ${player.level}`);
+      burst(sxFor(player.x), syFor(player.y), COLORS.gold, CONFIG.LEVEL_UP_PARTICLE_COUNT, "spark");
+      playSfx("level");
+      tryOpenTalentDialog();
+    }
+  } else {
+    const rawDmg = Math.max(1, Math.floor(trapDamage(player.def) / 2));
+    const dmg = effectiveIncomingDamage(rawDmg);
+    player.hp = Math.max(1, player.hp - dmg);
+    player.hitPulse = 8;
+    shake = 6;
+    playSfx("trap");
+    vibrate(CONFIG.VIBRATE_MEDIUM);
+    burst(x, y, COLORS.red, 8, "spark");
+    spawnFloatingText(sxFor(player.x), syFor(player.y), `-${dmg}`, COLORS.red);
+    addLog(`A armadilha disparou ao tentar desarmá-la! Você saltou para trás (-${dmg} PV).`, "red");
+    if (player.hp <= 0) {
+      if (handlePlayerDown()) { gameOver(); return; }
+    }
+  }
+  saveCurrentRun();
+  updateUI();
+}
+
 function startMentorDialog(item) {
   if (!item || item.used) return;
   item.used = true;
@@ -5104,7 +5190,7 @@ function computeEnemySynergy() {
   }
 }
 
-function beginCombat(enemy, wild = false) {
+function beginCombat(enemy, wild = false, playerAmbush = false) {
   currentEnemy = enemy;
   currentEnemy.ghostHp = enemy.hp;
   currentEnemy.statusEffects = currentEnemy.statusEffects || {};
@@ -5163,7 +5249,19 @@ if (enemy.boss) {
       addLog("Dica: A abre o menu de ações. Toque A de novo no momento certo do PONTO DOCE para mais dano — ou DEFENDA para absorver o golpe inimigo.", "cyan");
     }
     updateUI();
-    if (currentEnemy.affix === "wild") {
+    if (playerAmbush && currentEnemy.affix !== "wild") {
+      addLog(`Você surpreendeu ${enemy.name} pelas sombras! Ataque de Emboscada!`, "gold");
+      showToast("EMBOSCADA!", CONFIG.TOAST_MS);
+      player.momentum = Math.min(CONFIG.MOMENTUM_MAX, player.momentum + CONFIG.AMBUSH_MOMENTUM_BONUS);
+      if (combatMode === "turn") {
+        playerAtbReady = true;
+        atbPlayer = 0;
+        openCommandMenu();
+      } else if (combatMode === "action" && actionState) {
+        actionState.eStagger = CONFIG.AMBUSH_ACTION_STAGGER_TICKS;
+        addStatus(currentEnemy, "vulnerable", 2);
+      }
+    } else if (currentEnemy.affix === "wild") {
       addLog("O oponente é selvagem e avança primeiro!", "red");
       inTurn = true;
       scheduleEnemyTurn();
@@ -5540,10 +5638,13 @@ if (blocked) {
     player.stamina = Math.min(player.maxStamina, player.stamina + CONFIG.STAMINA_REGEN_PER_TURN + (perfect ? CONFIG.STAMINA_PERFECT_BLOCK_BONUS : 0));
     dmg = guardedDamage(dmg, false, true); // divisor aplicado a todo golpe bloqueado
     player.momentum = Math.min(CONFIG.MOMENTUM_MAX, player.momentum + (perfect ? CONFIG.MOMENTUM_GAIN_PERFECT : CONFIG.MOMENTUM_GAIN_BLOCK));
-    playSfx("block");
+    playSfx(perfect ? "parry" : "block");
     if (perfect) {
       addLog("RIPOSTE! Defesa perfeita e contra-ataque cristalino!", "gold");
       showToast("RIPOSTE!", CONFIG.TOAST_SHORT_MS);
+      slowMoTicks = Math.max(slowMoTicks, 8);
+      triggerZoomPulse();
+      flashOf(COLORS.gold, 4);
       spawnEffect("spark", sxFor(player.x), syFor(player.y), "", COLORS.gold, { life: 18, size: 3 });
       burst(sxFor(player.x), syFor(player.y), COLORS.gold, CONFIG.SPECIAL_PARTICLE_COUNT, "spark");
       if (currentEnemy) {
@@ -5902,6 +6003,8 @@ function openBlockWindow(dmg, logText) {
   }
   blockWindow = true;
   blockStartTs = performance.now();
+  playSfx("clash", { pitch: 1 });
+  spawnEffect("spark", sxFor(player.x), syFor(player.y), "", COLORS.gold, { life: 12, size: 2 });
   addLog(logText, "gold");
   updateUI();
   showToast("DEFENDA-SE!", CONFIG.TOAST_DEFEND_MS);
@@ -6163,10 +6266,11 @@ function updateUI() {
   const aBtn = aLabel.parentElement;
   const bBtnEl = bLabel.parentElement;
   if (gameState === "combat") {
-if (combatMode === "action") {
+    if (combatMode === "action") {
       const canPotion = player.hp <= Math.floor(player.maxHp * CONFIG.POTION_AUTO_HP_RATIO) && player.potions > 0;
-      aLabel.textContent = player.momentum >= CONFIG.MOMENTUM_MAX ? (player.specialCd <= 0 ? "ESPECIAL" : "SURTO") : "ATAQUE";
-      aBtn.classList.remove("blockActive");
+      const isCounter = actionState && actionState.counterWindow > 0;
+      aLabel.textContent = isCounter ? "CONTRA-ATK!" : player.momentum >= CONFIG.MOMENTUM_MAX ? (player.specialCd <= 0 ? "ESPECIAL" : "SURTO") : "ATAQUE";
+      aBtn.classList.toggle("blockActive", isCounter);
       bLabel.textContent = canPotion ? "POÇÃO" : "ESQUIVA";
       bBtnEl.classList.remove("cdActive");
     } else if (blockWindow) {
@@ -6184,8 +6288,12 @@ if (combatMode === "action") {
     aBtn.classList.remove("blockActive");
     bBtnEl.classList.remove("cdActive");
     if (gameState === "explore") {
+      const dir = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }[player.dir];
+      const tx = player.x + (dir ? dir[0] : 0), ty = player.y + (dir ? dir[1] : 0);
+      const aheadItem = itemAt(tx, ty);
       if (exitTile && player.x === exitTile.x && player.y === exitTile.y) aLabel.textContent = "DESCER";
       else if (itemAt(player.x, player.y)) aLabel.textContent = "USAR";
+      else if (aheadItem && aheadItem.type === "trap") aLabel.textContent = "DESARMAR";
       else aLabel.textContent = "VER";
       bLabel.textContent = "POÇÃO";
     }
@@ -6247,8 +6355,9 @@ function inspectAhead() {
     if (item.type === "mentor") { startMentorDialog(item); return; }
     if (item.type === "shop") { addLog("À frente: um mercador errante espera compradores.", "gold"); return; }
     if (item.type === "event") { startEventDialog(item); return; }
-    const labels = { potion: "uma poção cintila", chest: "um baú selado espera", shrine: "um altar pulsa", trap: "o piso parece suspeito" };
-    addLog(`À frente: ${labels[item.type] || "algo estranho"}.`, item.type === "trap" ? "red" : item.type === "shrine" ? "purple" : "green");
+    if (item.type === "trap") { disarmTrap(item); return; }
+    const labels = { potion: "uma poção cintila", chest: "um baú selado espera", shrine: "um altar pulsa" };
+    addLog(`À frente: ${labels[item.type] || "algo estranho"}.`, item.type === "shrine" ? "purple" : "green");
   } else if (!isWalkable(dungeon, tx, ty)) addLog(LORE_FRAGMENTS[rand(0, LORE_FRAGMENTS.length - 1)], "purple");
   else if (exitTile && tx === exitTile.x && ty === exitTile.y) {
     if (currentFloor < FINAL_FLOOR) addLog("Uma escada desce para o próximo andar.", "gold");
@@ -7687,6 +7796,8 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
         debugPlayerAttack: () => {
           if (gameState !== "combat" || combatMode !== "action" || !currentEnemy || !actionState) return "not-combat";
           const st = actionState;
+          st.atkCd = 0;
+          st.dashTicks = 0;
           st.ex = st.px + 2;
           st.ey = st.py;
           actionPlayerAttack();

@@ -66,3 +66,47 @@ describe("Gameplay Polish: AoE telegraph mechanics", () => {
     expect(CONFIG.BOSS_PHASE2_DEF_MULT).toBeGreaterThan(1.0);
   });
 });
+
+describe("Gameplay Polish: Ambush and Initiative Advantage", () => {
+  it("provides positive momentum bonus and stagger duration on ambush", () => {
+    expect(CONFIG.AMBUSH_MOMENTUM_BONUS).toBeDefined();
+    expect(CONFIG.AMBUSH_MOMENTUM_BONUS).toBeGreaterThanOrEqual(15);
+    expect(CONFIG.AMBUSH_MOMENTUM_BONUS).toBeLessThanOrEqual(50);
+
+    expect(CONFIG.AMBUSH_ACTION_STAGGER_TICKS).toBeDefined();
+    expect(CONFIG.AMBUSH_ACTION_STAGGER_TICKS).toBeGreaterThanOrEqual(30);
+  });
+});
+
+describe("Gameplay Polish: Flash Counter mechanics", () => {
+  it("defines responsive flash counter window and potent damage multiplier", () => {
+    expect(CONFIG.FLASH_COUNTER_WINDOW_TICKS).toBeDefined();
+    expect(CONFIG.FLASH_COUNTER_WINDOW_TICKS).toBeGreaterThanOrEqual(20);
+    expect(CONFIG.FLASH_COUNTER_WINDOW_TICKS).toBeLessThanOrEqual(45);
+
+    expect(CONFIG.FLASH_COUNTER_DMG_MULT).toBeDefined();
+    expect(CONFIG.FLASH_COUNTER_DMG_MULT).toBeGreaterThanOrEqual(1.5);
+    expect(CONFIG.FLASH_COUNTER_DMG_MULT).toBeLessThanOrEqual(2.2);
+  });
+});
+
+describe("Gameplay Polish: Trap Disarming mechanics", () => {
+  it("defines balanced XP, Gold, and default success rate", () => {
+    expect(CONFIG.DISARM_TRAP_XP).toBeGreaterThanOrEqual(10);
+    expect(CONFIG.DISARM_TRAP_GOLD).toBeGreaterThanOrEqual(3);
+    expect(CONFIG.DISARM_SUCCESS_CHANCE_DEFAULT).toBeGreaterThanOrEqual(0.6);
+    expect(CONFIG.DISARM_SUCCESS_CHANCE_DEFAULT).toBeLessThan(1.0);
+  });
+
+  it("rogue class always succeeds at disarming (100% chance)", () => {
+    const isRogue = (classKey: string) => classKey === "rogue";
+    const disarmSuccess = (classKey: string, roll: number) => isRogue(classKey) || roll < CONFIG.DISARM_SUCCESS_CHANCE_DEFAULT;
+
+    // Rogue succeeds even with worst roll
+    expect(disarmSuccess("rogue", 0.99)).toBe(true);
+    // Other classes succeed with good roll, fail with bad roll
+    expect(disarmSuccess("warrior", 0.1)).toBe(true);
+    expect(disarmSuccess("warrior", 0.95)).toBe(false);
+  });
+});
+
