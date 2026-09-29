@@ -11,16 +11,22 @@
 ## 🌟 Destaques do Jogo
 
 - **⚔️ Dois Modos de Combate Fluidos:**
-  - **Ação em Tempo Real:** Esquivas ágeis com i-frames, arcos de corte cortantes (*slashing arcs*), combos de golpes, contra-ataque relâmpago (*Flash Counter*), câmera lenta cinemática (*Slow-Mo / Bullet-Time*) em finalizadores e acertos críticos, e projéteis arcanos com brilho neon dinâmico.
+  - **Ação em Tempo Real:** Esquivas ágeis com i-frames, arcos de corte cortantes (*slashing arcs*), combos de golpes, contra-ataque relâmpago (*Flash Counter*), sombras residuais (*Afterimages*) translúcidas, suporte de entrada do aliado (*Tag-Team Assist*), câmera lenta cinemática (*Slow-Mo / Bullet-Time*) em finalizadores e acertos críticos, e projéteis arcanos com brilho neon dinâmico.
   - **Estratégico por Turnos (ATB):** Barra de prontidão de ação, timing ativo de defesa e riposte metálico sintetizado, emboscada furtiva com vantagem de iniciativa, telegrafia de intenções inimigas e fraquezas elementais dinâmicas.
-- **🎨 Gráficos 16-bit, Sprites Vivos & Animações:**
+- **☠️ Golpe de Misericórdia / Execução Fatal (Mercy Finisher):**
+  - Inimigos em estado crítico (<18% HP) disparam alerta visual `☠ FATAL!`. Desfira o golpe de misericórdia para acionar estocada letal instantânea, hitstop de 5 frames, câmera lenta dramática de 16 frames, restauração de 10% de PV máximo por sifão de sangue e Momentum máximo.
+- **🏺 Exploração Dinâmica & Urnas Destrutíveis:**
+  - Vasos de terracota espalhados pelas salas que se quebram em fragmentos e poeira com som estalado e liberam ouro, stamina, poções ou surpresas. Interação fluida via botão de ação `QUEBRAR`.
+- **🎨 Gráficos 16-bit, Sprites Vivos & Cenário Animado:**
   - **Heróis Expressivos:** Espelhamento horizontal de postura e armas (`facing`), ciclo de passos de 4 fases, golpes específicos por classe e feedback de impacto com *white damage flash*.
+  - **Tochas Vivas e Iluminação Ambiente:** Arandelas de ferro nas paredes com chamas de 4 fases procedurais e fagulhas de brasas incandescentes subindo ao teto.
   - **Monstros com Vida Própria:** Deformação elástica (*squash & stretch*) com conservação de volume em Slimes, ciclo de voo de 3 fases em Morcegos, orelhas e adagas em Goblins, chamas espectrais em Armaduras Vivas e o Núcleo Rubro pulsando no peito do Guardião.
   - **Cenário e Adereços Detalhados:** Escadaria de saída em perspectiva 3D com portal rúnico, baús de mogno com brilho dourado estelar, altares com cristais e orbes de mana em levitação.
 - **✨ Game Feel e Feedback Visual Primoroso:**
   - **Barra de Vida Fantasma (Ghost HP):** Rastro âmbar amortecido que desliza suavemente ao causar dano, tanto no HUD de turnos quanto na barra de combate de ação.
   - **Decalques de Batalha no Chão:** Marcas de sangue procedurais e fagulhas que marcam o piso da cripta durante os confrontos e desaparecem gradualmente.
   - **Telegrafia de Área de Efeito (Boss AoE):** Ondas de choque do Guardião Rubro com anéis concêntricos tracejados expansivos, permitindo fuga por raio ou contra-ataque de Esquiva Perfeita.
+  - **Floating Combat Text com Pop Elástico:** Números com amortecimento senoidal e sombra de alto contraste.
 - **🛡️ 5 Classes Exclusivas:**
   - **Guerreiro:** Tanque disciplinado de alta armadura e bloqueio devastador.
   - **Ladino:** Crítico evasivo, velocidade, desarme mestre de armadilhas e sangramento furtivo.
@@ -43,7 +49,7 @@
 | **Atacar / Confirmar** | `Z` / `Enter` | Botão virtual **A** |
 | **Habilidade / Poção** | `X` / `Espaço` | Botão virtual **B** |
 | **Pausar / Menu** | `Esc` / `P` | Botão **Ⅱ** (Topo) |
-| **Inspecionar / Usar / Desarmar** | Pisar / `Z` | Botão contextual **A** (`DESCER` / `USAR` / `DESARMAR`) |
+| **Inspecionar / Usar / Quebrar / Desarmar** | Pisar / `Z` | Botão contextual **A** (`DESCER` / `USAR` / `QUEBRAR` / `DESARMAR`) |
 
 ---
 
