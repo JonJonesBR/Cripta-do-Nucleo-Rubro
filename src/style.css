@@ -358,8 +358,15 @@ canvas {
   overflow: hidden;
 }
 
-#menuOverlay, .modalOverlay, .menuPanel, .pausePanel, .menuView {
-  overflow: hidden !important;
+#menuOverlay, .modalOverlay {
+  overflow: hidden;
+}
+
+.menuPanel, .pausePanel, .menuView {
+  overflow-y: auto;
+  max-height: 94dvh;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
 }
 
 #menuOverlay::before, .modalOverlay::before {

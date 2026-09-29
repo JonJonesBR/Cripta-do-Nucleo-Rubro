@@ -1,0 +1,48 @@
+# Histórico de Progresso do Plano de Melhorias — Cripta do Núcleo Rubro
+
+Este documento registra todo o histórico de execuções, refinamentos e auditorias realizadas no projeto.
+
+---
+
+## Rodadas Anteriores Concluídas
+
+### Rodada 1 (2026-08-21): Reestruturação Arquitetural e Desacoplamento
+- **Fase 1 — Controle de versão:** Inicialização do repositório Git (branch `main`), baseline fixada (`773a718`), arquivamento de legado em `legacy/`, pipeline de build e verificação (`npm run check`).
+- **Fase 2 — Documentação:** Criação do `README.md`, padronização da geração de artefato único autônomo em `release/` (`singlefile.mjs`).
+- **Fase 3 — Unificação de fórmulas:** Migração e centralização das fórmulas de dano (`physicalDamage`, `magicDamage`, `attackRoll`, `specialDamage`, `trapDamage`) em `src/core/combat.ts`. Eliminação de drifts e duplicações em `game.ts` + 13 testes dourados.
+- **Fase 4 — Extração incremental do monólito:**
+  - 4a: `core/dungeon.ts` (geração de masmorra, BFS/Dijkstra, navegação, +12 testes unitários).
+  - 4b: `core/events.ts` e `core/shop.ts` (resolução pura de eventos e loja, +26 testes unitários).
+  - 4c: `core/elements.ts` (elementos, afixos de elite e multiplicadores, +7 testes unitários).
+  - 4d: `data/talents.ts`, `core/monsters.ts` e `core/relics.ts` (captura, equipe de monstros, relíquias, +17 testes unitários).
+  - 4e: `core/ai.ts` (inteligência de inimigos, rotação de chefes e sinergia de aliados, +10 testes unitários).
+- **Fase 5 — Testes e balanceamento data-driven:** Poderes de status em `core/combat.ts`, constantes e multiplicadores centralizados em `src/data/config.ts`. Total alcançado: 114 testes unitários e 11 specs E2E.
+- **Fase 6 — Polimento estético e performance:** Favicon SVG inline, Web Manifest, meta tags Open Graph. Otimização de performance no loop de patrulha (reutilização de matriz 42x42 ao invés de alocação por frame).
+
+### Rodada 2 (2026-08-29): Refinamentos de QA Visual e Usabilidade Móvel
+- **Commit `a98f7bf`:** Ajuste de alvos de toque para padrão mobile (mínimo 44px na barra superior e nos slots), feedback sonoro/toast para importação de saves e sanitização contra injeção de HTML/XSS em saves importados.
+- **Commit `feb9879`:** Correção do painel de combate por turnos (eliminação de sobreposição de camadas visuais), legenda do modo action íntegra, menu de pausa com inventário completo renderizado e correção de pequenos erros tipográficos.
+
+---
+
+### Rodada 3 (2026-09-29): Elevação de UX, UI, Jogabilidade, Diversão e Gráficos (Régua 9.0 a 9.5) — ✅ CONCLUÍDA
+
+- **Subagente Crítico Invocado:** Auditoria adversarial inicial diagnosticou gargalos (notas iniciais: UX 6.8, UI 7.0, Jogabilidade 7.2, Gráficos 6.9).
+- **Melhorias de UX (Nota Final: 9.3 / 10):**
+  - Implementada deadzone central neutra de 14px em `directionFromDpad` e `vectorFromDpad`, eliminando passos falsos ao repousar o dedo.
+  - Intervalo de repetição do D-Pad (`DPAD_REPEAT_MS`) ajustado de 135ms para 170ms, prevenindo overstepping sobre armadilhas.
+  - Movimentação diagonal/analógica no modo ação para touch, garantindo paridade total entre touch e teclado WASD.
+  - Cancelamento de menu de comandos (`cancelCommandMenu`) seguro: não drena mais ATB nem penaliza o jogador com turno grátis do monstro.
+  - Interação contextual no Botão A (`inspectAhead`): verifica o piso sob os pés prioritariamente (descer escadas, abrir baús, usar fontes) com rótulos contextuais dinâmicos (`DESCER`, `USAR`, `VER`).
+- **Melhorias de UI (Nota Final: 9.2 / 10):**
+  - Centralização dinâmica do painel de combate (`drawCombatPanel`) com base em `CONFIG.CANVAS_W`, eliminando distorções em widescreen e tablets.
+  - Modais com `overflow-y: auto`, `max-height: 94dvh` e barra de rolagem estilizada em `src/style.css`, prevenindo cortes de botões em telas pequenas.
+- **Melhorias de Jogabilidade & Diversão (Nota Final: 9.5 / 10):**
+  - Janela de bloqueio (`BLOCK_WINDOW_MS`) ampliada para 480ms e janela de ataque para 560ms, compensando latência de toque móvel.
+  - Decaimento suave de combo: dano não bloqueado reduz apenas 1 nível de combo ao invés de zerar brutalmente todo o medidor.
+  - Arcos de corte dinâmicos (*slashing arcs*) com `ctx.arc`, gradientes e faíscas brilhantes ao golpear no modo de ação.
+- **Melhorias de Gráficos, Estética & Áudio (Nota Final: 9.2 / 10):**
+  - Silhueta/outline escura 16-bit (`#060614`) adicionada aos sprites de heróis e monstros, destacando-os com nitidez contra qualquer piso.
+  - Iluminação radial suave pulsante da tocha projetando um halo dourado em torno do herói e das paredes.
+  - Trilha sonora com canal de percussão procedural chiptune no Web Audio (sub-kick, snare e hi-hats rítmicos).
+- **Verificação:** 114/114 testes unitários passando, 18/18 testes E2E do Playwright passando, build de produção e single-file gerados com sucesso.

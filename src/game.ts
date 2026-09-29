@@ -270,6 +270,14 @@ function startMusic(opts = {}) {
     tone(root, t, bossCombat ? 0.18 : 0.14, bossCombat ? "sawtooth" : "triangle", (bossCombat ? 0.032 : 0.018) * g);
     if (musicStep % 4 === 0) tone(root / 2, t, bossCombat ? 0.3 : 0.22, "sine", (bossCombat ? 0.072 : 0.025) * g);
     if (isCombat || bossCombat) tone(root * (bossCombat ? 1.75 : 1.5), t + 0.08, 0.1, "square", (bossCombat ? 0.028 : 0.017) * g);
+    if (musicStep % 4 === 0) {
+      tone(52, t, 0.07, "sine", (bossCombat ? 0.055 : 0.035) * g);
+    } else if ((isCombat || bossCombat) && musicStep % 4 === 2) {
+      noise(t, bossCombat ? 0.06 : 0.04, 0.032 * g);
+      tone(85, t, 0.04, "triangle", 0.025 * g);
+    } else if (musicStep % 2 === 1) {
+      noise(t, 0.02, 0.015 * g);
+    }
     musicStep++;
     musicTimer = setTimeout(scheduleNext, bossCombat ? CONFIG.MUSIC_BOSS_INTERVAL_MS : CONFIG.MUSIC_NORMAL_INTERVAL_MS);
   };
@@ -1292,7 +1300,9 @@ function drawEntityOnMap(ctx, enemy, cameraRx, cameraRy, tick) {
     ctx.fillRect(sx + 4, sy + 3, TILE - 8, TILE - 5);
     ctx.globalAlpha = 1;
   }
-  drawSpriteByKind(ctx, enemy, drawX, drawY, CONFIG.SPRITE_SCALE, enemy.color, tick);
+  const s = CONFIG.SPRITE_SCALE;
+  px(ctx, drawX + 2 * s, drawY + 1 * s, 12, 14, "#060614", s);
+  drawSpriteByKind(ctx, enemy, drawX, drawY, s, enemy.color, tick);
   drawTinyHpBar(ctx, sx + 4, sy + 1, enemy.hp / enemy.maxHp, enemy.boss ? COLORS.red : COLORS.green);
 }
 
@@ -1317,11 +1327,15 @@ function drawPlayer(ctx, player, cameraRx, cameraRy, tick) {
     ctx.fillRect(sx + 4, sy + 4, TILE - 8, TILE - 6);
     ctx.globalAlpha = 1;
   }
-  if (player.classKey === "warrior") drawSpriteWarrior(ctx, sx + hitJolt + lungeX, sy + stepLift + lungeY, CONFIG.SPRITE_SCALE, tick, player);
-  if (player.classKey === "rogue") drawSpriteRogue(ctx, sx + hitJolt + lungeX, sy + stepLift + lungeY, CONFIG.SPRITE_SCALE, tick, player);
-  if (player.classKey === "mage") drawSpriteMage(ctx, sx + hitJolt + lungeX, sy + stepLift + lungeY, CONFIG.SPRITE_SCALE, tick, player);
-  if (player.classKey === "beastmaster") drawSpriteBeastmaster(ctx, sx + hitJolt + lungeX, sy + stepLift + lungeY, CONFIG.SPRITE_SCALE, tick, player);
-  if (player.classKey === "witch") drawSpriteWitch(ctx, sx + hitJolt + lungeX, sy + stepLift + lungeY, CONFIG.SPRITE_SCALE, tick, player);
+  const s = CONFIG.SPRITE_SCALE;
+  const pxPos = sx + hitJolt + lungeX;
+  const pyPos = sy + stepLift + lungeY;
+  px(ctx, pxPos + 2 * s, pyPos + 1 * s, 12, 14, "#060614", s);
+  if (player.classKey === "warrior") drawSpriteWarrior(ctx, pxPos, pyPos, s, tick, player);
+  if (player.classKey === "rogue") drawSpriteRogue(ctx, pxPos, pyPos, s, tick, player);
+  if (player.classKey === "mage") drawSpriteMage(ctx, pxPos, pyPos, s, tick, player);
+  if (player.classKey === "beastmaster") drawSpriteBeastmaster(ctx, pxPos, pyPos, s, tick, player);
+  if (player.classKey === "witch") drawSpriteWitch(ctx, pxPos, pyPos, s, tick, player);
   drawFacingMarker(ctx, sx, sy, player.dir);
 }
 
@@ -1468,7 +1482,10 @@ function drawItems(ctx, items, cameraRx, cameraRy, tick) {
 
 function drawCombatPanel(ctx, currentEnemy, tick) {
   const W = CONFIG.CANVAS_W, H = CONFIG.CANVAS_H;
-  const boxX = CONFIG.COMBAT_PANEL_X, boxY = CONFIG.COMBAT_PANEL_Y, boxW = W - CONFIG.COMBAT_PANEL_W_OFFSET, boxH = CONFIG.COMBAT_PANEL_H;
+  const boxW = Math.min(296, W - 16);
+  const boxX = Math.max(8, Math.round((W - boxW) / 2));
+  const boxY = CONFIG.COMBAT_PANEL_Y;
+  const boxH = CONFIG.COMBAT_PANEL_H;
   ctx.fillStyle = `rgba(7, 7, 20, ${CONFIG.COMBAT_PANEL_BG_ALPHA})`;
   ctx.fillRect(boxX, boxY, boxW, boxH);
   ctx.strokeStyle = COLORS.wallHi;
@@ -3265,17 +3282,13 @@ function cancelCommandMenu() {
     if (main) main.classList.remove("hidden");
     if (roster) roster.classList.add("hidden");
     if (title) title.textContent = "AÇÃO";
-    if (hint) hint.textContent = "D-PAD escolhe · A confirma · B passa a vez";
+    if (hint) hint.textContent = "D-PAD escolhe · A confirma · B fecha menu";
     refreshCommandMenu();
     playSfx("select");
     return;
   }
   closeCommandMenu();
-  playerAtbReady = false;
-  atbPlayer = 0;
-  inTurn = true;
-  addLog("Você hesita e perde a iniciativa...", "muted");
-  scheduleEnemyTurn();
+  addLog("Comando cancelado.", "muted");
   updateUI();
 }
 
@@ -3488,7 +3501,10 @@ function clampActionY(v) {
 
 function getActionMoveDir() {
   let dx = 0, dy = 0;
-  if (actionMoveDir === "up") dy = -1;
+  if (actionMoveDir && typeof actionMoveDir === "object" && typeof actionMoveDir.dx === "number") {
+    dx = actionMoveDir.dx;
+    dy = actionMoveDir.dy;
+  } else if (actionMoveDir === "up") dy = -1;
   else if (actionMoveDir === "down") dy = 1;
   else if (actionMoveDir === "left") dx = -1;
   else if (actionMoveDir === "right") dx = 1;
@@ -3637,7 +3653,11 @@ player.hp = Math.max(0, player.hp - dmg);
             addStatus(player, "bleed", 3, venomBleedPower(currentEnemy.level));
             addLog("O ferimento SANGRA!", "red");
           }
-          if (player.combo > 0) {
+          if (player.combo > 1) {
+            player.combo = Math.max(0, player.combo - 1);
+            player.comboMult = Math.max(0, player.comboMult - CONFIG.COMBO_DMG_PER_STACK);
+            spawnFloatingText(st.px, st.py - 32, "COMBO -1", COLORS.orange);
+          } else if (player.combo === 1) {
             player.combo = 0;
             player.comboMult = 0;
             spawnFloatingText(st.px, st.py - 32, "COMBO QUEBRADO", COLORS.orange);
@@ -4211,18 +4231,40 @@ function drawActionHero(ctx, tick) {
   const lunge = st.atkAnim > 0 ? 2 * s : 0;
   const offX = st.facing === "left" ? -lunge : st.facing === "right" ? lunge : 0;
   const offY = st.facing === "up" ? -lunge : st.facing === "down" ? lunge : 0;
+  px(ctx, x + 2 * s + offX, y + (1 + bob) * s, 8, 8, "#060614", s);
   px(ctx, x + 3 * s + offX, y + (2 + bob) * s, 6, 6, c, s);
   px(ctx, x + 4 * s + offX, y + (1 + bob) * s, 4, 2, "#f7d9a0", s);
   if (st.facing === "right") { px(ctx, x + 8 * s + offX, y + (2 + bob) * s, 1, 1, COLORS.black, s); }
   else if (st.facing === "left") { px(ctx, x + 4 * s + offX, y + (2 + bob) * s, 1, 1, COLORS.black, s); }
   else { px(ctx, x + 6 * s + offX, y + (2 + bob) * s, 2, 1, COLORS.black, s); }
-if (st.atkAnim > 0) {
+  if (st.atkAnim > 0) {
     const isFin = st.comboStep >= CONFIG.ACTION_COMBO_STEPS - 1;
-    const wl = isFin ? 6 : 4;
-    const wx = x + (st.facing === "left" ? -2 : st.facing === "right" ? 10 : 6) * s + offX;
-    const wy = y + (3 + bob) * s + offY;
-    px(ctx, wx, wy, wl, 1, isFin ? COLORS.orange : COLORS.gold, s);
-    px(ctx, wx + (st.facing === "left" ? -1 : 1) * s, wy - s, 1, 2, "#fff3c9", s);
+    const slashColor = isFin ? "#ff8a3c" : "#ffd45c";
+    const slashGlow = isFin ? "#ffe28a" : "#ffffff";
+    const arcRadius = (isFin ? 16 : 12) * s;
+    const centerArcX = x + 6 * s + offX;
+    const centerArcY = y + 5 * s + offY;
+
+    let baseAngle = 0;
+    if (st.facing === "right") baseAngle = 0;
+    else if (st.facing === "down") baseAngle = Math.PI * 0.5;
+    else if (st.facing === "left") baseAngle = Math.PI;
+    else if (st.facing === "up") baseAngle = -Math.PI * 0.5;
+
+    ctx.save();
+    ctx.strokeStyle = slashGlow;
+    ctx.lineWidth = Math.max(2, 2 * s);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.arc(centerArcX, centerArcY, arcRadius, baseAngle - 0.7, baseAngle + 0.7);
+    ctx.stroke();
+
+    ctx.strokeStyle = slashColor;
+    ctx.lineWidth = Math.max(1, 1 * s);
+    ctx.beginPath();
+    ctx.arc(centerArcX, centerArcY, arcRadius + 2 * s, baseAngle - 0.5, baseAngle + 0.5);
+    ctx.stroke();
+    ctx.restore();
   }
   ctx.globalAlpha = 1;
   const hx = x - 26, hy = y - 24;
@@ -5353,11 +5395,19 @@ if (blocked) {
   dmg = effectiveIncomingDamage(dmg);
   player.hp = Math.max(0, player.hp - dmg);
   if (!blocked) {
-    player.combo = 0;
-    player.comboMult = 0;
-    player.timingCombo = 0;
-    player.timingComboMult = 0;
-    addLog("O dano interrompeu seu ritmo! Combo perdido.", "muted");
+    if (player.combo > 1) {
+      player.combo = Math.max(0, player.combo - 1);
+      player.comboMult = Math.max(0, player.comboMult - CONFIG.COMBO_DMG_PER_STACK);
+      player.timingCombo = Math.max(0, player.timingCombo - 1);
+      player.timingComboMult = Math.max(0, player.timingComboMult - 0.08);
+      addLog("O impacto abalou seu ritmo! Combo reduzido.", "muted");
+    } else {
+      player.combo = 0;
+      player.comboMult = 0;
+      player.timingCombo = 0;
+      player.timingComboMult = 0;
+      addLog("O dano interrompeu seu ritmo! Combo perdido.", "muted");
+    }
   }
   if (currentEnemy && currentEnemy.affix === "venomous" && !blocked) {
     addStatus(player, "bleed", 3, venomBleedPower(currentEnemy.level));
@@ -5959,7 +6009,12 @@ if (combatMode === "action") {
   } else {
     aBtn.classList.remove("blockActive");
     bBtnEl.classList.remove("cdActive");
-    if (gameState === "explore") { aLabel.textContent = "VER"; bLabel.textContent = "POÇÃO"; }
+    if (gameState === "explore") {
+      if (exitTile && player.x === exitTile.x && player.y === exitTile.y) aLabel.textContent = "DESCER";
+      else if (itemAt(player.x, player.y)) aLabel.textContent = "USAR";
+      else aLabel.textContent = "VER";
+      bLabel.textContent = "POÇÃO";
+    }
     else if (gameState === "paused") { aLabel.textContent = "OK"; bLabel.textContent = "FECHAR"; }
     else { aLabel.textContent = "OK"; bLabel.textContent = "MENU"; }
   }
@@ -5972,6 +6027,7 @@ function actionA() {
     if (combatMode === "action") { actionPlayerAttack(); return; }
     if (commandMenuOpen) { confirmCommand(commandMenuIndex); return; }
     if (blockWindow) { blockWindow = false; applyPendingDamage(true, performance.now() - blockStartTs); return; }
+    if (combatMode === "turn" && playerAtbReady && !commandMenuOpen) { openCommandMenu(); return; }
     playerAttack(false);
   } else if (gameState === "bossIntro" && mentorDialog) finishMentorDialog();
   else if (gameState === "bossIntro" && shopDialog) buyShopItem();
@@ -5984,6 +6040,29 @@ function actionA() {
 
 function inspectAhead() {
   if (!player) return;
+  if (exitTile && player.x === exitTile.x && player.y === exitTile.y) {
+    if (currentFloor < CONFIG.FINAL_FLOOR) { descendFloor(); return; }
+    if (bossDefeated) {
+      if (endlessMode) {
+        addLog("A cripta se aprofunda além do andar final... Modo Infinito!", "gold");
+        descendFloor();
+      } else {
+        winGame();
+      }
+      return;
+    }
+    addLog("Uma força rubra bloqueia a saída. Derrote o chefão!", "red");
+    return;
+  }
+  const itemHere = itemAt(player.x, player.y);
+  if (itemHere) {
+    if (itemHere.type === "mentor") { startMentorDialog(itemHere); return; }
+    if (itemHere.type === "shop") { openShopDialog(itemHere); return; }
+    if (itemHere.type === "event") { startEventDialog(itemHere); return; }
+    resolveItem(itemHere);
+    return;
+  }
+
   const dir = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }[player.dir];
   const tx = player.x + dir[0], ty = player.y + dir[1];
   const enemy = occupiedByEnemy(tx, ty);
@@ -5997,7 +6076,7 @@ function inspectAhead() {
     const labels = { potion: "uma poção cintila", chest: "um baú selado espera", shrine: "um altar pulsa", trap: "o piso parece suspeito" };
     addLog(`À frente: ${labels[item.type] || "algo estranho"}.`, item.type === "trap" ? "red" : item.type === "shrine" ? "purple" : "green");
   } else if (!isWalkable(dungeon, tx, ty)) addLog(LORE_FRAGMENTS[rand(0, LORE_FRAGMENTS.length - 1)], "purple");
-  else if (tx === exitTile.x && ty === exitTile.y) {
+  else if (exitTile && tx === exitTile.x && ty === exitTile.y) {
     if (currentFloor < FINAL_FLOOR) addLog("Uma escada desce para o próximo andar.", "gold");
     else addLog(bossDefeated ? "A saída está aberta." : "A saída pulsa com um selo rubro.");
   } else addLog(LORE_FRAGMENTS[rand(0, LORE_FRAGMENTS.length - 1)], "purple");
@@ -6364,8 +6443,22 @@ function drawPlayerLightAura() {
 
 function drawTorchFlicker() {
   if (!player || gameState === "floorTransition") return;
-  const baseX = Math.round((player.rx - camera.rx) * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE / 2 - CONFIG.TORCH_OFFSET_CENTER_X);
-  const baseY = Math.round((player.ry - camera.ry) * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE / 2 - CONFIG.TORCH_OFFSET_CENTER_Y);
+  const px2 = Math.round((player.rx - camera.rx) * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE / 2);
+  const py2 = Math.round((player.ry - camera.ry) * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE / 2);
+
+  const pulse = 0.9 + 0.1 * Math.sin(tick * 0.11) + 0.05 * Math.cos(tick * 0.17);
+  const radius = Math.round(58 * pulse);
+  const grad = ctx.createRadialGradient(px2, py2, 4, px2, py2, radius);
+  grad.addColorStop(0, "rgba(255, 214, 110, 0.15)");
+  grad.addColorStop(0.45, "rgba(255, 140, 50, 0.07)");
+  grad.addColorStop(1, "rgba(255, 80, 20, 0)");
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(px2, py2, radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  const baseX = px2 - CONFIG.TORCH_OFFSET_CENTER_X;
+  const baseY = py2 - CONFIG.TORCH_OFFSET_CENTER_Y;
   for (let i = 0; i < CONFIG.TORCH_COUNT; i++) {
     const tx = baseX + rand(CONFIG.TORCH_X_RANGE[0], CONFIG.TORCH_X_RANGE[1]);
     const ty = baseY + rand(CONFIG.TORCH_Y_RANGE[0], CONFIG.TORCH_Y_RANGE[1]);
@@ -6781,16 +6874,31 @@ function bindButtonPress(selector, handler) {
 
 function directionFromDpad(ev) {
   const dpad = document.getElementById("dpad");
+  if (!dpad) return null;
   const rect = dpad.getBoundingClientRect();
   const x = ev.clientX - rect.left - rect.width / 2;
   const y = ev.clientY - rect.top - rect.height / 2;
+  const dist = Math.hypot(x, y);
+  if (dist < 14) return null;
   if (Math.abs(x) > Math.abs(y)) return x > 0 ? "right" : "left";
   return y > 0 ? "down" : "up";
 }
 
-function moveByDir(dir) {
+function vectorFromDpad(ev) {
+  const dpad = document.getElementById("dpad");
+  if (!dpad) return null;
+  const rect = dpad.getBoundingClientRect();
+  const x = ev.clientX - rect.left - rect.width / 2;
+  const y = ev.clientY - rect.top - rect.height / 2;
+  const dist = Math.hypot(x, y);
+  if (dist < 14) return null;
+  return { dx: x / dist, dy: y / dist };
+}
+
+function moveByDir(dir, vector = null) {
+  if (!dir && !vector) return;
   if (commandMenuOpen && gameState === "combat") {
-    commandMenuMove(dir);
+    if (dir) commandMenuMove(dir);
     return;
   }
   if (shopDialog && gameState === "bossIntro") {
@@ -6815,9 +6923,10 @@ function moveByDir(dir) {
     return;
   }
   if (gameState === "combat" && combatMode === "action") {
-    actionMoveDir = dir;
+    actionMoveDir = vector || dir;
     return;
   }
+  if (!dir) return;
   const moves = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
   const [dx, dy] = moves[dir];
   tryMove(dx, dy);
@@ -6834,7 +6943,9 @@ function bindDpad() {
       const timer = setInterval(() => {
         const data = activePointers.get(ev.pointerId);
         if (!data) return;
-        moveByDir(directionFromDpad(data.ev));
+        const dir = directionFromDpad(data.ev);
+        const vec = vectorFromDpad(data.ev);
+        moveByDir(dir, vec);
       }, CONFIG.DPAD_REPEAT_MS);
       activePointers.set(ev.pointerId, { ev: { clientX: ev.clientX, clientY: ev.clientY }, timer });
       updateDpadDirection(activePointers.get(ev.pointerId).ev);
@@ -6860,10 +6971,13 @@ function bindDpad() {
     };
   function updateDpadDirection(evData) {
     const dir = directionFromDpad(evData);
-    moveByDir(dir);
+    const vec = vectorFromDpad(evData);
+    moveByDir(dir, vec);
     dpad.querySelectorAll(".pressed").forEach(btn => btn.classList.remove("pressed"));
-    const target = dpad.querySelector(`[data-dir="${dir}"]`);
-    if (target) target.classList.add("pressed");
+    if (dir) {
+      const target = dpad.querySelector(`[data-dir="${dir}"]`);
+      if (target) target.classList.add("pressed");
+    }
   }
   dpad.addEventListener("pointerdown", press);
   dpad.addEventListener("pointermove", move);

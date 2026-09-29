@@ -6,13 +6,14 @@ export default defineConfig({
   retries: 0,
   workers: 1,
   use: {
-    baseURL: "http://localhost:4173",
-    headless: true
+    baseURL: "http://localhost:4188",
+    headless: true,
+    channel: "msedge"
   },
   webServer: {
-    command: "npm run dev -- --port 4173 --strictPort",
-    url: "http://localhost:4173",
-    reuseExistingServer: true,
+    command: "npm run dev -- --port 4188 --strictPort",
+    url: "http://localhost:4188",
+    reuseExistingServer: false,
     timeout: 30000
   }
 });
