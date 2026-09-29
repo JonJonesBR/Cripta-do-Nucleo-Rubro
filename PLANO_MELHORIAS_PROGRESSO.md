@@ -46,3 +46,23 @@ Este documento registra todo o histórico de execuções, refinamentos e auditor
   - Iluminação radial suave pulsante da tocha projetando um halo dourado em torno do herói e das paredes.
   - Trilha sonora com canal de percussão procedural chiptune no Web Audio (sub-kick, snare e hi-hats rítmicos).
 - **Verificação:** 114/114 testes unitários passando, 18/18 testes E2E do Playwright passando, build de produção e single-file gerados com sucesso.
+
+---
+
+### Rodada 4 (2026-09-29): Refinamentos Cirúrgicos de Jogabilidade, Diversão e Gráficos — ✅ CONCLUÍDA
+
+- **Subagente Crítico Invocado:** `game-critic` (Roguelike UX/UI and Gameplay Critic).
+- **Melhorias de Jogabilidade & Diversão (Nota Final: 9.6 / 10):**
+  - **Cinematic Slow-Mo & Impact Juice:** Finalizadores de combo (`slowMoTicks = 10`) e acertos críticos (`slowMoTicks = 12`) ativam câmera lenta suave ("bullet time") sincronizada com `triggerZoomPulse()` e feedback háptico, entregando game feel visceral.
+  - **Telegrafia de Área de Efeito (Boss AoE Warning Rings):** Na Fase 2 do Guardião Rubro, o boss canaliza ondas de choque rubras com anéis concêntricos tracejados e raio progressivo. Esquivar com timing nos i-frames recompensa com `ESQUIVA PERFEITA DA ONDA DE CHOQUE!`, +40 de Momentum e 3 turnos de vulnerabilidade do chefe.
+  - Integração da transição para Fase 2 do Guardião Rubro também no combate em modo Ação.
+- **Melhorias de Gráficos & Estética Visual (Nota Final: 9.5 / 10):**
+  - **Iluminação Dinâmica em Projéteis (Bolt Glow Cache):** Pré-render de gradiente radial em canvas cache (`ensureBoltGlowCache`) desenhado com blend mode `screen` sob cada projétil mágico no modo ação (`drawActionBolts`), sem perda de desempenho por frame.
+  - **Decalques Temporários no Chão (Floor Decals / Blood Splatters):** Marcas de sangue procedurais no piso da masmorra e na arena de combate com pool controlado (`MAX_DECALS_COUNT = 48`), fade-out gradual e descarte limpo na mudança de andar.
+- **Melhorias de UX & UI (Notas Finais: UX 9.5 / 10, UI 9.4 / 10):**
+  - **Ghost HP Bar (Barra Fantasma):** Tanto no painel de combate por turnos (`drawCombatPanel`) quanto sobre a cabeça dos inimigos no modo ação (`drawActionEnemySprite`), dano recebido causa decréscimo imediato do HP e animação suave amortecida (`CONFIG.GHOST_HP_LERP_SPEED = 0.08`) da barra âmbar/amarela.
+- **Verificação Completa:**
+  - `npx tsc --noEmit`: 0 erros.
+  - Vitest: 13 suítes, 120/120 testes passando (incluindo nova suíte `tests/gameplay-polish.test.ts`).
+  - Playwright: 27/27 specs E2E passando com Edge headless.
+  - Pacote autônomo offline gerado: `release/CRIPTA DO NÚCLEO RUBRO (jogo único).html` (250 kB).

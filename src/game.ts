@@ -84,6 +84,7 @@ function acquireEnemy() {
   e.intent = null;
   e.nextIntent = null;
   e.telegraphCooldown = 0;
+  e.ghostHp = undefined;
   return e;
 }
 
@@ -903,6 +904,7 @@ function seedMotes() {
 }
 
 function updateEffects() {
+  updateDecals();
   for (let i = effects.length - 1; i >= 0; i--) {
     const effect = effects[i];
     effect.life--;
@@ -1511,8 +1513,15 @@ const hpRatio = currentEnemy.hp / currentEnemy.maxHp;
     drawPixelText(ctx, `ENCADEADO x${player.timingCombo} (+${Math.round(player.timingComboMult * 100)}%)`, tX, tY, COLORS.purple, 1);
   }
 
+  if (currentEnemy.ghostHp === undefined) currentEnemy.ghostHp = currentEnemy.hp;
+  const ghostRatio = Math.max(0, Math.min(1, currentEnemy.ghostHp / currentEnemy.maxHp));
+
   ctx.fillStyle = "#101027";
   ctx.fillRect(boxX + CONFIG.COMBAT_PANEL_HP_BAR_X, boxY + CONFIG.COMBAT_PANEL_HP_BAR_Y, boxW - 20, CONFIG.COMBAT_PANEL_HP_BAR_H);
+  if (ghostRatio > hpRatio) {
+    ctx.fillStyle = "rgba(255, 205, 70, 0.85)";
+    ctx.fillRect(boxX + CONFIG.COMBAT_PANEL_HP_BAR_FILL_X, boxY + CONFIG.COMBAT_PANEL_HP_BAR_FILL_Y, Math.floor((boxW - 22) * ghostRatio), CONFIG.COMBAT_PANEL_HP_BAR_FILL_H);
+  }
   ctx.fillStyle = hpRatio > 0.5 ? COLORS.green : hpRatio > 0.25 ? COLORS.gold : COLORS.red;
   ctx.fillRect(boxX + CONFIG.COMBAT_PANEL_HP_BAR_FILL_X, boxY + CONFIG.COMBAT_PANEL_HP_BAR_FILL_Y, Math.floor((boxW - 22) * hpRatio), CONFIG.COMBAT_PANEL_HP_BAR_FILL_H);
   drawPixelText(ctx, `PV ${currentEnemy.hp}/${currentEnemy.maxHp}`, boxX + CONFIG.COMBAT_PANEL_HP_BAR_X, boxY + CONFIG.COMBAT_PANEL_HP_BAR_TEXT_Y, COLORS.text, 1);
@@ -2137,6 +2146,70 @@ let camera = { x: 0, y: 0, rx: 0, ry: 0 };
 let mapCache = null;
 let lightGradientCache = null;
 let playerLightAuraCache = null;
+let boltGlowCache = null;
+const decalPool = [];
+const activeDecals = [];
+
+function ensureBoltGlowCache() {
+  if (boltGlowCache) return boltGlowCache;
+  const size = 48;
+  const cv = document.createElement("canvas");
+  cv.width = size; cv.height = size;
+  const g = cv.getContext("2d");
+  const grad = g.createRadialGradient(size / 2, size / 2, 2, size / 2, size / 2, size / 2);
+  grad.addColorStop(0, "rgba(255, 180, 70, 0.45)");
+  grad.addColorStop(0.4, "rgba(255, 110, 30, 0.16)");
+  grad.addColorStop(1, "rgba(255, 80, 20, 0)");
+  g.fillStyle = grad;
+  g.fillRect(0, 0, size, size);
+  boltGlowCache = cv;
+  return cv;
+}
+
+function spawnDecal(x, y, color = "#7a1a2b", count = 3) {
+  for (let i = 0; i < count; i++) {
+    const d = decalPool.pop() || {};
+    d.x = x + rand(-8, 8);
+    d.y = y + rand(-6, 6);
+    d.w = rand(2, 4);
+    d.h = rand(1, 3);
+    d.color = color;
+    d.maxLife = CONFIG.DECAL_DEFAULT_LIFE + rand(-60, 60);
+    d.life = d.maxLife;
+    activeDecals.push(d);
+  }
+  while (activeDecals.length > CONFIG.MAX_DECALS_COUNT) {
+    const old = activeDecals.shift();
+    if (decalPool.length < 50) decalPool.push(old);
+  }
+}
+
+function updateDecals() {
+  for (let i = activeDecals.length - 1; i >= 0; i--) {
+    const d = activeDecals[i];
+    d.life--;
+    if (d.life <= 0) {
+      activeDecals.splice(i, 1);
+      if (decalPool.length < 50) decalPool.push(d);
+    }
+  }
+}
+
+function drawDecals(ctx, cameraRx, cameraRy) {
+  const TILE = CONFIG.TILE_SIZE;
+  const isAction = gameState === "combat" && combatMode === "action";
+  for (const d of activeDecals) {
+    const sx = isAction ? d.x : Math.round(d.x - cameraRx * TILE);
+    const sy = isAction ? d.y : Math.round(d.y - cameraRy * TILE);
+    if (sx < -10 || sx > CONFIG.CANVAS_W + 10 || sy < -10 || sy > CONFIG.CANVAS_H + 10) continue;
+    const alpha = Math.min(0.65, d.life / (d.maxLife * 0.35));
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = d.color;
+    ctx.fillRect(sx, sy, d.w, d.h);
+  }
+  ctx.globalAlpha = 1;
+}
+
 let logLines = [];
 let shake = 0;
 let flash = 0;
@@ -2660,6 +2733,7 @@ function startGame(classKey) {
     dungeon.map[exitTile.y][exitTile.x] = CONFIG.TILE_EXIT;
     LoadingScreen.setProgress(80);
 
+    activeDecals.length = 0;
     ensureCaches();
     spawnEnemiesAndItems(dungeon, enemies, items, player, exitTile, currentFloor, runStats, meta);
     buildMapCache();
@@ -2679,6 +2753,7 @@ function startGame(classKey) {
 }
 
 function restartToMenu() {
+  activeDecals.length = 0;
   gameState = "menu";
   stateBeforePause = "explore";
   pauseOverlay.classList.add("hidden");
@@ -3601,9 +3676,54 @@ function updateActionEnemy() {
     st.eWindup--;
     if (st.telegraph) { st.telegraph.life--; if (st.telegraph.life <= 0) st.telegraph = null; }
     if (st.eWindup <= 0) {
+      const isAoE = st.telegraph && st.telegraph.kind === "aoe";
+      const aoeRadius = st.telegraph ? (st.telegraph.r || 72) : 72;
       st.eWindup = 0;
       st.telegraph = null;
       const d = Math.hypot(st.ex - st.px, st.ey - st.py);
+      if (isAoE) {
+        burst(st.ex, st.ey, COLORS.red, 24, "spark");
+        flashOf(COLORS.red, 6);
+        shakeFrom(st.ex, st.ey, st.px, st.py, 8);
+        playSfx("boom");
+        if (d <= aoeRadius) {
+          if (st.iframes > 0) {
+            player.momentum = Math.min(CONFIG.MOMENTUM_MAX, player.momentum + CONFIG.ACTION_PERFECT_DODGE_REWARD);
+            slowMoTicks = Math.max(slowMoTicks, CONFIG.ACTION_PERFECT_DODGE_SLOWMO_TICKS + 4);
+            triggerZoomPulse();
+            addStatus(currentEnemy, "vulnerable", 3);
+            spawnFloatingText(st.px, st.py - 30, "ESQUIVA PERFEITA!", COLORS.gold, 1.5);
+            spawnFloatingText(st.px, st.py - 46, `+${CONFIG.ACTION_PERFECT_DODGE_REWARD} MOM`, COLORS.gold);
+            playSfx("crit");
+            hapticCrit();
+            flashOf(COLORS.gold, 5);
+            addLog("ESQUIVA PERFEITA DA ONDA DE CHOQUE!", "gold");
+          } else {
+            let dmg = attackRoll(currentEnemy.atk, player.def, { atkMult: 1.25, variance: 2 });
+            dmg = effectiveIncomingDamage(dmg);
+            player.hp = Math.max(0, player.hp - dmg);
+            juiceHitsTaken++;
+            spawnFloatingText(st.px, st.py - 18, `-${dmg}`, COLORS.red);
+            burst(st.px, st.py, COLORS.red, 12, "spark");
+            spawnDecal(st.px, st.py, "#8b1828", 4);
+            playSfx("hurt");
+            hapticHeavy();
+            hitStop(CONFIG.HIT_STOP_HEAVY);
+            addLog(`${currentEnemy.name} esmaga com a Onda Rubra: -${dmg} PV!`, "red");
+            updateUI();
+            if (player.hp <= 0) {
+              if (handlePlayerDown()) { gameOver(); return; }
+              updateActionAfterSwap();
+              return;
+            }
+          }
+        } else {
+          addLog("Você esquivou da Onda de Choque ficando fora do alcance!", "green");
+          spawnFloatingText(st.px, st.py - 18, "FORA DE ALCANCE", COLORS.green);
+        }
+        st.eAttackCd = actionEnemyAttackCd() + 15;
+        return;
+      }
       if (profile.ranged) {
         actionFireBolt();
       } else if (d <= CONFIG.ACTION_ENEMY_RANGE + 14) {
@@ -3643,6 +3763,7 @@ player.hp = Math.max(0, player.hp - dmg);
           juiceHitsTaken++;
           spawnFloatingText(st.px, st.py - 18, `-${dmg}`, COLORS.red);
           burst(st.px, st.py, COLORS.red, 8, "spark");
+          spawnDecal(st.px, st.py, "#8b1828", 3);
           playSfx("hurt");
           hapticHeavy();
           shakeFrom(st.ex, st.ey, st.px, st.py, 6);
@@ -3708,6 +3829,14 @@ player.hp = Math.max(0, player.hp - dmg);
       spawnEffect("spark", st.ex, st.ey - 20, "", COLORS.orange, { life: 10, vx: 0, vy: -0.1, size: 2 });
       playSfx("ominous");
     }
+    return;
+  }
+  if (currentEnemy.boss && currentEnemy.phase2 && chance(0.35)) {
+    st.eWindup = 36;
+    st.telegraph = { kind: "aoe", r: 75, life: 36, maxLife: 36 };
+    spawnEffect("spark", st.ex, st.ey - 20, "", COLORS.red, { life: 16, vx: 0, vy: -0.1, size: 3 });
+    playSfx("ominous");
+    addLog(`${currentEnemy.name} canaliza um IMPACTO DE ÁREA! Afaste-se ou desvie!`, "red");
     return;
   }
   if (d > profile.range) {
@@ -3946,8 +4075,9 @@ function applyActionHit(dmg, opts = {}) {
     spawnEffect("vapor", st.ex, st.ey - 6, "", COLORS.purple, { life: 20, size: 4 });
     flashOf(COLORS.blue, 6);
   }
-  if (critical && !reducedMotion) { freezeFrames = CONFIG.FREEZE_FRAMES_CRIT; hapticCrit(); }
-  else if (isFinisher && !reducedMotion) { freezeFrames = CONFIG.FREEZE_FRAMES_HEAVY_HIT; hapticMedium(); }
+  spawnDecal(st.ex, st.ey, currentEnemy.boss ? "#a81e32" : "#7a1a2b", critical || isFinisher ? 5 : 2);
+  if (critical && !reducedMotion) { freezeFrames = CONFIG.FREEZE_FRAMES_CRIT; hapticCrit(); slowMoTicks = Math.max(slowMoTicks, 12); triggerZoomPulse(); }
+  else if (isFinisher && !reducedMotion) { freezeFrames = CONFIG.FREEZE_FRAMES_HEAVY_HIT; hapticMedium(); slowMoTicks = Math.max(slowMoTicks, 10); triggerZoomPulse(); }
   else hapticLight();
   playSfx(currentEnemy.boss ? "bossHit" : (critical ? "crit" : (isFinisher ? "boom" : "hit")), { pitch: rand(-1, 1) * 0.5 });
   flashOf(critical ? COLORS.gold : COLORS.red, critical ? 5 : 3);
@@ -3960,6 +4090,9 @@ function applyActionHit(dmg, opts = {}) {
   if (currentEnemy.hp <= 0) {
     endCombatVictory();
     return true;
+  }
+  if (currentEnemy.boss && !currentEnemy.phase2) {
+    maybeTriggerBossPhase2();
   }
   return true;
 }
@@ -4103,6 +4236,7 @@ function drawActionArena(ctx) {
   ctx.globalAlpha = 0.72;
   drawActionArenaFloor(ctx, r);
   ctx.restore();
+  drawDecals(ctx, 0, 0);
   ctx.globalAlpha = 1;
   ctx.strokeStyle = COLORS.gold;
   ctx.lineWidth = 2;
@@ -4151,9 +4285,30 @@ function drawActionTelegraph(ctx, tick) {
   if (!st || !currentEnemy || !st.telegraph || reducedMotion) return;
   const t = st.telegraph;
   const alpha = CONFIG.ACTION_TELEGRAPH_ARC_ALPHA * (0.5 + 0.5 * Math.sin(tick / CONFIG.ACTION_TELEGRAPH_ARC_PULSE));
-  const d = Math.hypot(st.px - st.ex, st.ey - st.ey) || 1;
   const ang = Math.atan2(st.py - st.ey, st.px - st.ex);
-  if (t.kind === "melee") {
+  if (t.kind === "aoe") {
+    const prog = clamp(1 - (t.life / (t.maxLife || 36)), 0, 1);
+    const currR = t.r * (0.25 + 0.75 * prog);
+    ctx.save();
+    ctx.translate(st.ex, st.ey);
+    // Outer dashed ring boundary
+    ctx.strokeStyle = `rgba(255, 70, 70, ${alpha * 0.85})`;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 4]);
+    ctx.beginPath();
+    ctx.arc(0, 0, t.r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Expanding danger shockwave
+    ctx.fillStyle = `rgba(255, 60, 40, ${alpha * 0.3})`;
+    ctx.beginPath();
+    ctx.arc(0, 0, currR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = `rgba(255, 210, 80, ${alpha * 0.95})`;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
+  } else if (t.kind === "melee") {
     // Zona de alcance melee: arco frontal no chão na direção do jogador.
     ctx.save();
     ctx.translate(st.ex, st.ey);
@@ -4214,8 +4369,15 @@ function drawActionEnemySprite(ctx, tick) {
   ctx.fillRect(hx - 1, hy - 1, 54, 7);
   ctx.fillStyle = "#3a0d1c";
   ctx.fillRect(hx, hy, 52, 5);
+  if (currentEnemy.ghostHp === undefined) currentEnemy.ghostHp = currentEnemy.hp;
+  const ghostRatio = Math.max(0, Math.min(1, currentEnemy.ghostHp / currentEnemy.maxHp));
+  const hpRatio = Math.max(0, Math.min(1, currentEnemy.hp / currentEnemy.maxHp));
+  if (ghostRatio > hpRatio) {
+    ctx.fillStyle = "rgba(255, 205, 70, 0.85)";
+    ctx.fillRect(hx, hy, Math.max(0, Math.round(52 * ghostRatio)), 5);
+  }
   ctx.fillStyle = COLORS.red;
-  ctx.fillRect(hx, hy, Math.max(0, Math.round(52 * Math.max(0, currentEnemy.hp / currentEnemy.maxHp))), 5);
+  ctx.fillRect(hx, hy, Math.max(0, Math.round(52 * hpRatio)), 5);
   drawPixelText(ctx, currentEnemy.name, x, y - 34, COLORS.text, 1);
 }
 
@@ -4279,8 +4441,15 @@ function drawActionHero(ctx, tick) {
 }
 
 function drawActionBolts(ctx) {
+  const glow = ensureBoltGlowCache();
+  const prevGco = ctx.globalCompositeOperation;
   for (const b of actionBolts) {
     const alpha = clamp(b.life / 20, 0, 1);
+    ctx.globalCompositeOperation = "screen";
+    ctx.globalAlpha = alpha * 0.85;
+    ctx.drawImage(glow, Math.round(b.x - glow.width / 2), Math.round(b.y - glow.height / 2));
+    ctx.globalCompositeOperation = prevGco;
+
     ctx.globalAlpha = alpha;
     ctx.fillStyle = b.color || COLORS.orange;
     ctx.fillRect(b.x - 4, b.y - 2, 9, 4);
@@ -4492,6 +4661,7 @@ function finishDescendFloor(nextFloor) {
     dungeon = generateDungeon();
     enemies = [];
     items = [];
+    activeDecals.length = 0;
     bossDefeated = false;
     currentEnemy = null;
     gameState = "explore";
@@ -4936,6 +5106,7 @@ function computeEnemySynergy() {
 
 function beginCombat(enemy, wild = false) {
   currentEnemy = enemy;
+  currentEnemy.ghostHp = enemy.hp;
   currentEnemy.statusEffects = currentEnemy.statusEffects || {};
   currentEnemy.wild = wild || currentEnemy.wild;
   player.maxStamina = player.maxStamina || CONFIG.PLAYER_STAMINA_MAX;
@@ -5238,10 +5409,11 @@ if (burstActive) {
   spawnFloatingText(hitX, hitY, `-${dmg}`, critical ? COLORS.gold : COLORS.white, critical ? 1.7 : 1.2);
   if (comboOnThisHit && player.combo > 1) spawnFloatingText(hitX, hitY - 14, `COMBO x${player.combo}`, COLORS.purple, 1.4);
   spawnEffect(effectType, hitX, hitY, "", runeBlade ? COLORS.blue : (critical ? COLORS.gold : COLORS.white), { life: CONFIG.EFFECT_LIFE_SPARK_MIN, size: runeBlade ? 4 : (critical ? 3 : 2), rot: { up: 1.57, down: -1.57, left: 3.14, right: 0 }[player.dir] || 0 });
-burst(hitX, hitY, runeBlade ? COLORS.gold : (critical ? COLORS.gold : COLORS.red), runeBlade ? CONFIG.SPECIAL_PARTICLE_COUNT : (critical ? CONFIG.CRIT_PARTICLE_COUNT : CONFIG.NORMAL_HIT_PARTICLE_COUNT), "spark");
+  burst(hitX, hitY, runeBlade ? COLORS.gold : (critical ? COLORS.gold : COLORS.red), runeBlade ? CONFIG.SPECIAL_PARTICLE_COUNT : (critical ? CONFIG.CRIT_PARTICLE_COUNT : CONFIG.NORMAL_HIT_PARTICLE_COUNT), "spark");
+  spawnDecal(currentEnemy.x * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE / 2, currentEnemy.y * CONFIG.TILE_SIZE + CONFIG.TILE_SIZE / 2, currentEnemy.boss ? "#a81e32" : "#7a1a2b", critical ? 4 : 2);
   flashOf(runeBlade ? COLORS.blue : (critical ? COLORS.gold : COLORS.red), runeBlade ? 6 : 5);
   shakeFrom(sxFor(player.x), syFor(player.y), hitX, hitY, critical ? 8 : 4);
-  if (critical && !reducedMotion) freezeFrames = CONFIG.FREEZE_FRAMES_CRIT;
+  if (critical && !reducedMotion) { freezeFrames = CONFIG.FREEZE_FRAMES_CRIT; triggerZoomPulse(); slowMoTicks = Math.max(slowMoTicks, 10); }
   playSfx(runeBlade ? "rune" : (currentEnemy.boss ? "bossHit" : (critical ? "crit" : "hit")), { pitch: rand(-1, 1) * 0.5 });
   vibrate(critical ? CONFIG.VIBRATE_CRIT_PATTERN : CONFIG.VIBRATE_LIGHT);
 
@@ -5285,14 +5457,16 @@ function usePotionOrSpecial() {
 function maybeTriggerBossPhase2() {
   if (!currentEnemy || !currentEnemy.boss || currentEnemy.phase2) return;
   if (currentEnemy.hp <= 0 || currentEnemy.hp > Math.floor(currentEnemy.maxHp / 2)) return;
-currentEnemy.phase2 = true;
+  currentEnemy.phase2 = true;
   currentEnemy.name = "Guardião Rubro, Forma Real";
   currentEnemy.maxHp = Math.max(currentEnemy.maxHp, Math.round(currentEnemy.maxHp * 1.15));
   currentEnemy.hp = currentEnemy.maxHp;
+  currentEnemy.ghostHp = currentEnemy.hp;
   currentEnemy.atk = Math.round(currentEnemy.atk * CONFIG.BOSS_PHASE2_ATK_MULT);
   currentEnemy.def = Math.round(currentEnemy.def * CONFIG.BOSS_PHASE2_DEF_MULT);
-  currentEnemy.phase2 = true;
-  const x = sxFor(currentEnemy.x), y = syFor(currentEnemy.y);
+  const isAction = gameState === "combat" && combatMode === "action" && actionState;
+  const x = isAction ? actionState.ex : sxFor(currentEnemy.x);
+  const y = isAction ? actionState.ey : syFor(currentEnemy.y);
   burst(x, y, COLORS.red, 30, "spark");
   shake = 16; flash = 12;
   playSfx("boom");
@@ -6105,6 +6279,9 @@ function updateFixedStep() {
   if (gameState === "combat" && combatMode === "turn" && currentEnemy) updateAtbCombat();
   else if (gameState === "combat" && combatMode === "action" && currentEnemy) updateActionCombat();
   if (gameState === "combat" && combatMode === "action") updateActionBolts();
+  if (currentEnemy && currentEnemy.ghostHp !== undefined && currentEnemy.ghostHp > currentEnemy.hp) {
+    currentEnemy.ghostHp = Math.max(currentEnemy.hp, currentEnemy.ghostHp - Math.max(0.15, (currentEnemy.ghostHp - currentEnemy.hp) * CONFIG.GHOST_HP_LERP_SPEED));
+  }
   if (tick % CONFIG.TOOLTIP_UPDATE_INTERVAL === 0) updateTooltip();
   if (floorTransition && floorTransition.fadeAlpha != null) {
     floorTransition.fadeAlpha = Math.max(0, floorTransition.fadeAlpha - CONFIG.FLOOR_TRANSITION_FADE_STEP);
@@ -6422,6 +6599,7 @@ function drawDungeonView() {
   if (!mapCache) buildMapCache();
   const srcX = camera.rx * CONFIG.TILE_SIZE, srcY = camera.ry * CONFIG.TILE_SIZE;
   ctx.drawImage(mapCache, srcX, srcY, CONFIG.CANVAS_W, CONFIG.CANVAS_H, 0, 0, CONFIG.CANVAS_W, CONFIG.CANVAS_H);
+  drawDecals(ctx, camera.rx, camera.ry);
   ctx.fillStyle = COLORS.void;
   for (let sy = 0; sy < CONFIG.VIEW_H; sy++) {
     for (let sx = 0; sx < CONFIG.VIEW_W; sx++) {
@@ -7409,7 +7587,9 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
         combatMode,
         enemyName: currentEnemy ? currentEnemy.name : null,
         enemyHp: currentEnemy ? currentEnemy.hp : null,
+        enemyGhostHp: currentEnemy ? currentEnemy.ghostHp : null,
         enemyMaxHp: currentEnemy ? currentEnemy.maxHp : null,
+        activeDecalsCount: activeDecals.length,
         actionBolts: actionBolts.length,
         blockWindow,
         playerAtbReady,
@@ -7577,7 +7757,9 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
           combatMode = "turn";
           beginCombat(enemy);
           return { maxHp: enemy.maxHp, atk: enemy.atk, def: enemy.def, xp: enemy.xp, scale };
-        }
+        },
+        debugSpawnDecal: (x = 100, y = 100) => { spawnDecal(x, y); return activeDecals.length; },
+        debugBoltGlow: () => ensureBoltGlowCache()
       })
     });
   }
