@@ -1,6 +1,6 @@
 // Gera um HTML de arquivo único (CSS e JS embutidos) que roda direto do file://.
 // Uso: npm run build && npm run single
-import { readFileSync, writeFileSync, readdirSync } from "node:fs";
+import { readFileSync, writeFileSync, readdirSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -27,5 +27,6 @@ const result = html
   .replace(/<link rel="stylesheet"[^>]*>/, () => `<style>\n${css}\n</style>`)
   .replace("</body>", () => `<script>\n${js}\n</script>\n</body>`);
 
+mkdirSync(join(ROOT, "release"), { recursive: true });
 writeFileSync(OUT, result, "utf8");
 console.log(`OK -> ${OUT} (${(result.length / 1024).toFixed(0)} kB)`);
