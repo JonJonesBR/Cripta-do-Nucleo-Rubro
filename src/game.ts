@@ -1057,211 +1057,572 @@ function drawFacingMarker(ctx, x, y, dir) {
   if (dir === "right") ctx.fillRect(x + 21, y + 11, 2, 3);
 }
 
-function drawSpriteWarrior(ctx, x, y, s, tick, player) {
-  drawShadow(ctx, x, y, s);
-  const bob = Math.sin(tick / 9) > 0 ? 0 : 1;
-  px(ctx, x + 6*s, y + (2+bob)*s, 5, 4, "#ffd59f", s);
-  px(ctx, x + 5*s, y + (1+bob)*s, 7, 2, "#7a4a2a", s);
-  px(ctx, x + 5*s, y + (6+bob)*s, 7, 6, hasRelic(player, "Manto Cinzento") ? "#a8a8d7" : "#5ca8ff", s);
-  if (hasRelic(player, "Manto Cinzento")) px(ctx, x + 6*s, y + (7+bob)*s, 5, 3, "#d7d7ff", s);
-  px(ctx, x + 3*s, y + (7+bob)*s, 3, 6, "#d7d7ff", s);
-  px(ctx, x + 11*s, y + (7+bob)*s, 3, 6, "#d7d7ff", s);
-  px(ctx, x + 4*s, y + (12+bob)*s, 3, 2, "#30306b", s);
-  px(ctx, x + 10*s, y + (12+bob)*s, 3, 2, "#30306b", s);
-  px(ctx, x + 12*s, y + (4+bob)*s, 2, 6, hasRelic(player, "Lâmina Rúnica") ? COLORS.blue : "#f7f3d7", s);
-  if (hasRelic(player, "Lâmina Rúnica")) px(ctx, x + 14*s, y + (3+bob)*s, 1, 1, COLORS.white, s);
+function drawHeroSpriteByClass(ctx, classKey, x, y, s, tick, player, options = {}) {
+  const facing = options.facing || player?.dir || "right";
+  const isMoving = options.isMoving ?? (player?.movePulse > 0);
+  const isAttacking = options.isAttacking ?? (player?.attackPulse > 0);
+  const isGuarding = options.isGuarding ?? false;
+  const hitPulse = options.hitPulse ?? (player?.hitPulse || 0);
+
+  ctx.save();
+  if (facing === "left") {
+    const cx = x + 8 * s;
+    ctx.translate(cx, y);
+    ctx.scale(-1, 1);
+    ctx.translate(-cx, -y);
+  }
+
+  const isHitFlash = hitPulse > 0 && (hitPulse % 4) < 2;
+  const walkPhase = isMoving ? Math.floor(tick / 5) % 4 : 0;
+  const legL = isMoving ? (walkPhase === 0 ? 1 : walkPhase === 2 ? -1 : 0) : 0;
+  const legR = isMoving ? (walkPhase === 2 ? 1 : walkPhase === 0 ? -1 : 0) : 0;
+  const walkBob = isMoving ? (walkPhase % 2 === 0 ? 1 : 0) : (Math.sin(tick / 9) > 0 ? 0 : 1);
+
+  const anim = {
+    facing,
+    isMoving,
+    isAttacking,
+    isGuarding,
+    isHitFlash,
+    legL,
+    legR,
+    walkBob
+  };
+
+  switch (classKey) {
+    case "warrior":
+      drawSpriteWarrior(ctx, x, y, s, tick, player, anim);
+      break;
+    case "rogue":
+      drawSpriteRogue(ctx, x, y, s, tick, player, anim);
+      break;
+    case "beastmaster":
+      drawSpriteBeastmaster(ctx, x, y, s, tick, player, anim);
+      break;
+    case "witch":
+      drawSpriteWitch(ctx, x, y, s, tick, player, anim);
+      break;
+    case "mage":
+      drawSpriteMage(ctx, x, y, s, tick, player, options.ghostColor || null, anim);
+      break;
+    default:
+      drawSpriteWarrior(ctx, x, y, s, tick, player, anim);
+      break;
+  }
+
+  ctx.restore();
 }
 
-function drawSpriteRogue(ctx, x, y, s, tick, player) {
+function drawSpriteWarrior(ctx, x, y, s, tick, player, anim = {}) {
   drawShadow(ctx, x, y, s);
+  const bob = anim.walkBob !== undefined ? anim.walkBob : (Math.sin(tick / 9) > 0 ? 0 : 1);
+  const legL = anim.legL || 0;
+  const legR = anim.legR || 0;
+  const isAtk = !!anim.isAttacking;
+  const isGrd = !!anim.isGuarding;
+  const flash = !!anim.isHitFlash;
+
+  // Head and Hair
+  px(ctx, x + 6*s, y + (2+bob)*s, 5, 4, flash ? COLORS.white : "#ffd59f", s);
+  px(ctx, x + 5*s, y + (1+bob)*s, 7, 2, flash ? COLORS.white : "#7a4a2a", s);
+
+  // Armor Tunic
+  const armorColor = flash ? COLORS.white : (hasRelic(player, "Manto Cinzento") ? "#a8a8d7" : "#5ca8ff");
+  px(ctx, x + 5*s, y + (6+bob)*s, 7, 6, armorColor, s);
+  if (hasRelic(player, "Manto Cinzento")) px(ctx, x + 6*s, y + (7+bob)*s, 5, 3, flash ? COLORS.white : "#d7d7ff", s);
+
+  // Pauldrons
+  px(ctx, x + 3*s, y + (7+bob)*s, 3, 6, flash ? COLORS.white : "#d7d7ff", s);
+  px(ctx, x + 11*s, y + (7+bob)*s, 3, 6, flash ? COLORS.white : "#d7d7ff", s);
+
+  // Legs with walk cycle
+  px(ctx, x + 4*s, y + (12+bob+legL)*s, 3, 2, flash ? COLORS.white : "#30306b", s);
+  px(ctx, x + 10*s, y + (12+bob+legR)*s, 3, 2, flash ? COLORS.white : "#30306b", s);
+
+  // Shield if guarding
+  if (isGrd) {
+    px(ctx, x + 2*s, y + (5+bob)*s, 3, 8, flash ? COLORS.white : COLORS.gold, s);
+    px(ctx, x + 3*s, y + (6+bob)*s, 1, 6, COLORS.white, s);
+  }
+
+  // Sword with attack swing animation
+  const swOffX = isAtk ? 3 : 0;
+  const swOffY = isAtk ? -1 : 0;
+  const bladeColor = flash ? COLORS.white : (hasRelic(player, "Lâmina Rúnica") ? COLORS.blue : "#f7f3d7");
+  px(ctx, x + (12+swOffX)*s, y + (4+bob+swOffY)*s, 2, 6, bladeColor, s);
+  if (hasRelic(player, "Lâmina Rúnica")) {
+    px(ctx, x + (14+swOffX)*s, y + (3+bob+swOffY)*s, 1, 1, COLORS.white, s);
+  }
+  if (isAtk) {
+    // Gleaming attack arc trail
+    px(ctx, x + (14+swOffX)*s, y + (2+bob+swOffY)*s, 2, 2, COLORS.gold, s);
+    px(ctx, x + (15+swOffX)*s, y + (4+bob+swOffY)*s, 1, 3, COLORS.white, s);
+  }
+}
+
+function drawSpriteRogue(ctx, x, y, s, tick, player, anim = {}) {
+  drawShadow(ctx, x, y, s);
+  const bob = anim.walkBob !== undefined ? anim.walkBob : (Math.sin(tick / 8) > 0 ? 0 : 1);
+  const legL = anim.legL || 0;
+  const legR = anim.legR || 0;
+  const isAtk = !!anim.isAttacking;
+  const flash = !!anim.isHitFlash;
+
+  // Head and dark cowl
+  px(ctx, x + 6*s, y + (2+bob)*s, 5, 4, flash ? COLORS.white : "#ffd59f", s);
+  px(ctx, x + 5*s, y + (1+bob)*s, 7, 3, flash ? COLORS.white : "#2b1747", s);
+
+  // Rogue Cloak & Tunic
+  const cloakColor = flash ? COLORS.white : (hasRelic(player, "Manto Cinzento") ? "#7474a8" : "#b86cff");
+  px(ctx, x + 5*s, y + (6+bob)*s, 7, 6, cloakColor, s);
+  if (hasRelic(player, "Manto Cinzento")) px(ctx, x + 6*s, y + (7+bob)*s, 5, 2, flash ? COLORS.white : "#c6c6e8", s);
+
+  // Arms and leather wraps
+  px(ctx, x + 4*s, y + (8+bob)*s, 2, 5, flash ? COLORS.white : "#30306b", s);
+  px(ctx, x + 11*s, y + (8+bob)*s, 2, 5, flash ? COLORS.white : "#30306b", s);
+
+  // Daggers with thrust attack animation
+  const atkX = isAtk ? 3 : 0;
+  const daggerColor = flash ? COLORS.white : (hasRelic(player, "Lâmina Rúnica") ? COLORS.blue : "#f7f3d7");
+  px(ctx, x + (12+atkX)*s, y + (9+bob)*s, 3, 1, daggerColor, s);
+  if (isAtk) {
+    px(ctx, x + (14+atkX)*s, y + (7+bob)*s, 2, 1, COLORS.gold, s);
+    px(ctx, x + (15+atkX)*s, y + (8+bob)*s, 2, 2, COLORS.white, s);
+  }
+  if (hasRelic(player, "Lâmina Rúnica")) px(ctx, x + (15+atkX)*s, y + (8+bob)*s, 1, 1, COLORS.white, s);
+
+  // Boots with walk cycle
+  px(ctx, x + 4*s, y + (12+bob+legL)*s, 3, 2, flash ? COLORS.white : "#151536", s);
+  px(ctx, x + 10*s, y + (12+bob+legR)*s, 3, 2, flash ? COLORS.white : "#151536", s);
+}
+
+function drawSpriteBeastmaster(ctx, x, y, s, tick, player, anim = {}) {
+  drawShadow(ctx, x, y, s);
+  const bob = anim.walkBob !== undefined ? anim.walkBob : (Math.sin(tick / 9) > 0 ? 0 : 1);
+  const legL = anim.legL || 0;
+  const legR = anim.legR || 0;
+  const isAtk = !!anim.isAttacking;
+  const flash = !!anim.isHitFlash;
+
+  // Head and hunter cap
+  px(ctx, x + 6*s, y + (2+bob)*s, 5, 4, flash ? COLORS.white : "#ffd59f", s);
+  px(ctx, x + 5*s, y + (1+bob)*s, 7, 2, flash ? COLORS.white : "#6b3a1f", s);
+
+  // Wild tunic
+  const tunic = flash ? COLORS.white : (hasRelic(player, "Manto Cinzento") ? "#6b8f6b" : "#4ade80");
+  px(ctx, x + 5*s, y + (6+bob)*s, 7, 6, tunic, s);
+  if (hasRelic(player, "Manto Cinzento")) px(ctx, x + 6*s, y + (7+bob)*s, 5, 3, flash ? COLORS.white : "#b8d7b8", s);
+
+  // Bracers
+  px(ctx, x + 3*s, y + (7+bob)*s, 3, 5, flash ? COLORS.white : "#7a4a2a", s);
+  px(ctx, x + 11*s, y + (7+bob)*s, 3, 5, flash ? COLORS.white : "#7a4a2a", s);
+
+  // Boots with walk cycle
+  px(ctx, x + 4*s, y + (12+bob+legL)*s, 3, 2, flash ? COLORS.white : "#30306b", s);
+  px(ctx, x + 10*s, y + (12+bob+legR)*s, 3, 2, flash ? COLORS.white : "#30306b", s);
+
+  // Bone spear / claw with thrust animation
+  const atkX = isAtk ? 3 : 0;
+  const atkY = isAtk ? -1 : 0;
+  px(ctx, x + (13+atkX)*s, y + (5+bob+atkY)*s, 2, 2, flash ? COLORS.white : COLORS.white, s);
+  px(ctx, x + (14+atkX)*s, y + (4+bob+atkY)*s, 1, 1, flash ? COLORS.white : COLORS.white, s);
+  if (isAtk) {
+    px(ctx, x + (15+atkX)*s, y + (3+bob+atkY)*s, 2, 2, COLORS.green, s);
+  }
+}
+
+function drawSpriteWitch(ctx, x, y, s, tick, player, anim = {}) {
+  drawShadow(ctx, x, y, s);
+  const bob = anim.walkBob !== undefined ? anim.walkBob : (Math.sin(tick / 10) > 0 ? 0 : 1);
+  const legL = anim.legL || 0;
+  const legR = anim.legR || 0;
+  const isAtk = !!anim.isAttacking;
+  const flash = !!anim.isHitFlash;
+
+  const robe = flash ? COLORS.white : (hasRelic(player, "Manto Cinzento") ? "#7a4a7a" : "#b86cff");
+  px(ctx, x + 6*s, y + (2+bob)*s, 5, 4, flash ? COLORS.white : "#d4a574", s);
+  px(ctx, x + 5*s, y + (1+bob)*s, 7, 2, flash ? COLORS.white : "#3b0764", s);
+  px(ctx, x + 5*s, y + (6+bob)*s, 7, 7, robe, s);
+  if (hasRelic(player, "Manto Cinzento")) px(ctx, x + 6*s, y + (7+bob)*s, 5, 2, flash ? COLORS.white : "#c084c0", s);
+  px(ctx, x + 7*s, y + (7+bob)*s, 3, 3, flash ? COLORS.white : COLORS.gold, s);
+  px(ctx, x + 4*s, y + (8+bob)*s, 2, 4, flash ? COLORS.white : "#151536", s);
+  px(ctx, x + 11*s, y + (8+bob)*s, 2, 4, flash ? COLORS.white : "#151536", s);
+
+  // Wand with magic spark animation
+  const atkX = isAtk ? 2 : 0;
+  const atkY = isAtk ? -1 : 0;
+  const wandColor = flash ? COLORS.white : (hasRelic(player, "Lâmina Rúnica") ? COLORS.blue : COLORS.green);
+  px(ctx, x + (12+atkX)*s, y + (4+bob+atkY)*s, 2, 4, wandColor, s);
+  if (hasRelic(player, "Lâmina Rúnica")) px(ctx, x + (14+atkX)*s, y + (3+bob+atkY)*s, 1, 1, COLORS.white, s);
+  if (isAtk) {
+    px(ctx, x + (14+atkX)*s, y + (2+bob+atkY)*s, 2, 2, COLORS.purple, s);
+    px(ctx, x + (13+atkX)*s, y + (1+bob+atkY)*s, 1, 1, COLORS.white, s);
+  }
+
+  // Hem and feet
+  px(ctx, x + 4*s, y + (12+bob+legL)*s, 3, 2, flash ? COLORS.white : "#151536", s);
+  px(ctx, x + 10*s, y + (12+bob+legR)*s, 3, 2, flash ? COLORS.white : "#151536", s);
+}
+
+function drawSpriteMage(ctx, x, y, s, tick, player, ghostColor = null, anim = {}) {
+  drawShadow(ctx, x, y, s);
+  const bob = anim.walkBob !== undefined ? anim.walkBob : (Math.sin(tick / 10) > 0 ? 0 : 1);
+  const legL = anim.legL || 0;
+  const legR = anim.legR || 0;
+  const isAtk = !!anim.isAttacking;
+  const flash = !!anim.isHitFlash;
+
+  const robe = ghostColor || (flash ? COLORS.white : (hasRelic(player, "Manto Cinzento") ? "#7474a8" : "#30306b"));
+  px(ctx, x + 6*s, y + (2+bob)*s, 5, 4, ghostColor || (flash ? COLORS.white : "#ffd59f"), s);
+  px(ctx, x + 5*s, y + (1+bob)*s, 7, 3, ghostColor || (flash ? COLORS.white : "#ffd45c"), s);
+  px(ctx, x + 5*s, y + (6+bob)*s, 7, 7, robe, s);
+  if (hasRelic(player, "Manto Cinzento") && !ghostColor) px(ctx, x + 6*s, y + (7+bob)*s, 5, 2, flash ? COLORS.white : "#d7d7ff", s);
+  px(ctx, x + 7*s, y + (7+bob)*s, 3, 5, ghostColor || (flash ? COLORS.white : "#5ca8ff"), s);
+
+  // Mystic staff with attack sparkle
+  const atkX = isAtk ? 2 : 0;
+  const atkY = isAtk ? -1 : 0;
+  const staffColor = hasRelic(player, "Lâmina Rúnica") && !ghostColor ? COLORS.blue : (ghostColor || (flash ? COLORS.white : "#ffd45c"));
+  const gemColor = hasRelic(player, "Lâmina Rúnica") && !ghostColor ? COLORS.blue : (ghostColor || (flash ? COLORS.white : "#5ca8ff"));
+  px(ctx, x + (13+atkX)*s, y + (5+bob+atkY)*s, 1, 9, staffColor, s);
+  px(ctx, x + (12+atkX)*s, y + (4+bob+atkY)*s, 3, 2, gemColor, s);
+  if (hasRelic(player, "Lâmina Rúnica") && !ghostColor) px(ctx, x + (14+atkX)*s, y + (3+bob+atkY)*s, 1, 1, COLORS.white, s);
+  if (isAtk) {
+    px(ctx, x + (13+atkX)*s, y + (2+bob+atkY)*s, 2, 2, COLORS.gold, s);
+    px(ctx, x + (14+atkX)*s, y + (1+bob+atkY)*s, 1, 1, COLORS.white, s);
+  }
+
+  // Robe hem with walk cycle
+  px(ctx, x + 4*s, y + (13+bob+legL)*s, 4, 1, flash ? COLORS.white : "#151536", s);
+  px(ctx, x + 9*s, y + (13+bob+legR)*s, 4, 1, flash ? COLORS.white : "#151536", s);
+}
+
+function drawSpriteSlime(ctx, x, y, s, color, tick, enemy = null) {
+  drawShadow(ctx, x, y, s);
+  const flash = enemy && enemy.hitPulse > 0 && (enemy.hitPulse % 4) < 2;
+  const squish = Math.sin(tick / 5.5);
+  const wMod = Math.round(squish * 1.5);
+  const hMod = -Math.round(squish * 1.0);
+  const bob = squish > 0 ? 0 : 1;
+  const drawColor = flash ? COLORS.white : color;
+
+  // Main elastic jelly mass
+  px(ctx, x + (4 - wMod) * s, y + (8 + bob + hMod) * s, 9 + wMod * 2, 4 - hMod, drawColor, s);
+  px(ctx, x + (5 - Math.floor(wMod * 0.7)) * s, y + (6 + bob + hMod) * s, 7 + Math.floor(wMod * 1.4), 3, drawColor, s);
+
+  if (!flash) {
+    // Translucent floating inner core
+    px(ctx, x + 6 * s, y + (8 + bob) * s, 3, 2, "rgba(255, 255, 255, 0.4)", s);
+    // Glossy specular highlight
+    px(ctx, x + (5 - wMod) * s, y + (6 + bob + hMod) * s, 2, 1, COLORS.white, s);
+    // Cute expressive eyes that blink
+    const blink = (tick % 75) < 4;
+    if (!blink) {
+      px(ctx, x + 7 * s, y + (8 + bob) * s, 1, 2, "#080816", s);
+      px(ctx, x + 10 * s, y + (8 + bob) * s, 1, 2, "#080816", s);
+      // Eye glimmer
+      px(ctx, x + 7 * s, y + (8 + bob) * s, 1, 1, COLORS.white, s);
+      px(ctx, x + 10 * s, y + (8 + bob) * s, 1, 1, COLORS.white, s);
+    } else {
+      px(ctx, x + 7 * s, y + (9 + bob) * s, 2, 1, "#080816", s);
+      px(ctx, x + 10 * s, y + (9 + bob) * s, 2, 1, "#080816", s);
+    }
+  }
+}
+
+function drawSpriteBat(ctx, x, y, s, color, tick, enemy = null) {
+  drawShadow(ctx, x, y, s);
+  const flash = enemy && enemy.hitPulse > 0 && (enemy.hitPulse % 4) < 2;
+  const flap = Math.floor(tick / 4) % 3; // 0 = up, 1 = mid, 2 = down
+  const hover = Math.round(Math.sin(tick / 5) * 1.5);
+  const drawColor = flash ? COLORS.white : color;
+
+  // Bat body
+  px(ctx, x + 6 * s, y + (6 + hover) * s, 4, 6, drawColor, s);
+  // Pointed ears
+  px(ctx, x + 6 * s, y + (4 + hover) * s, 1, 2, drawColor, s);
+  px(ctx, x + 9 * s, y + (4 + hover) * s, 1, 2, drawColor, s);
+
+  // 3-frame flap cycle
+  if (flap === 0) { // Wings High
+    px(ctx, x + 2 * s, y + (3 + hover) * s, 4, 4, drawColor, s);
+    px(ctx, x + 10 * s, y + (3 + hover) * s, 4, 4, drawColor, s);
+    px(ctx, x + 1 * s, y + (2 + hover) * s, 2, 3, flash ? COLORS.white : "#2b1747", s);
+    px(ctx, x + 13 * s, y + (2 + hover) * s, 2, 3, flash ? COLORS.white : "#2b1747", s);
+  } else if (flap === 1) { // Wings Gliding
+    px(ctx, x + 1 * s, y + (6 + hover) * s, 5, 3, drawColor, s);
+    px(ctx, x + 10 * s, y + (6 + hover) * s, 5, 3, drawColor, s);
+    px(ctx, x + 0 * s, y + (7 + hover) * s, 2, 2, flash ? COLORS.white : "#2b1747", s);
+    px(ctx, x + 14 * s, y + (7 + hover) * s, 2, 2, flash ? COLORS.white : "#2b1747", s);
+  } else { // Wings Down
+    px(ctx, x + 2 * s, y + (8 + hover) * s, 4, 4, drawColor, s);
+    px(ctx, x + 10 * s, y + (8 + hover) * s, 4, 4, drawColor, s);
+    px(ctx, x + 3 * s, y + (11 + hover) * s, 2, 2, flash ? COLORS.white : "#2b1747", s);
+    px(ctx, x + 11 * s, y + (11 + hover) * s, 2, 2, flash ? COLORS.white : "#2b1747", s);
+  }
+
+  // Glowing eyes & vampire fangs
+  if (!flash) {
+    const eyeColor = COLORS.red;
+    px(ctx, x + 7 * s, y + (7 + hover) * s, 1, 1, eyeColor, s);
+    px(ctx, x + 9 * s, y + (7 + hover) * s, 1, 1, eyeColor, s);
+    px(ctx, x + 7 * s, y + (10 + hover) * s, 1, 1, COLORS.white, s); // fangs
+    px(ctx, x + 9 * s, y + (10 + hover) * s, 1, 1, COLORS.white, s);
+  }
+}
+
+function drawSpriteGoblin(ctx, x, y, s, color, tick, enemy = null) {
+  drawShadow(ctx, x, y, s);
+  const flash = enemy && enemy.hitPulse > 0 && (enemy.hitPulse % 4) < 2;
   const bob = Math.sin(tick / 8) > 0 ? 0 : 1;
-  px(ctx, x + 6*s, y + (2+bob)*s, 5, 4, "#ffd59f", s);
-  px(ctx, x + 5*s, y + (1+bob)*s, 7, 3, "#2b1747", s);
-  px(ctx, x + 5*s, y + (6+bob)*s, 7, 6, hasRelic(player, "Manto Cinzento") ? "#7474a8" : "#b86cff", s);
-  if (hasRelic(player, "Manto Cinzento")) px(ctx, x + 6*s, y + (7+bob)*s, 5, 2, "#c6c6e8", s);
-  px(ctx, x + 4*s, y + (8+bob)*s, 2, 5, "#30306b", s);
-  px(ctx, x + 11*s, y + (8+bob)*s, 2, 5, "#30306b", s);
-  px(ctx, x + 12*s, y + (9+bob)*s, 3, 1, hasRelic(player, "Lâmina Rúnica") ? COLORS.blue : "#f7f3d7", s);
-  if (hasRelic(player, "Lâmina Rúnica")) px(ctx, x + 15*s, y + (8+bob)*s, 1, 1, COLORS.white, s);
-  px(ctx, x + 4*s, y + (12+bob)*s, 3, 2, "#151536", s);
-  px(ctx, x + 10*s, y + (12+bob)*s, 3, 2, "#151536", s);
+  const earWiggle = Math.sin(tick / 11) > 0.7 ? -1 : 0;
+  const drawColor = flash ? COLORS.white : color;
+
+  // Head and body
+  px(ctx, x + 5 * s, y + (3 + bob) * s, 7, 5, drawColor, s);
+  // Twitching goblin ears
+  px(ctx, x + 3 * s, y + (3 + bob + earWiggle) * s, 2, 3, drawColor, s);
+  px(ctx, x + 12 * s, y + (3 + bob + earWiggle) * s, 2, 3, drawColor, s);
+  // Tattered leather vest & belt
+  px(ctx, x + 6 * s, y + (8 + bob) * s, 6, 5, flash ? COLORS.white : "#7a4a2a", s);
+  px(ctx, x + 7 * s, y + (11 + bob) * s, 4, 1, flash ? COLORS.white : COLORS.gold, s); // belt buckle
+
+  if (!flash) {
+    // Blinking amber eyes
+    const blink = (tick % 80) < 4;
+    if (!blink) {
+      px(ctx, x + 6 * s, y + (5 + bob) * s, 1, 2, COLORS.gold, s);
+      px(ctx, x + 10 * s, y + (5 + bob) * s, 1, 2, COLORS.gold, s);
+      px(ctx, x + 7 * s, y + (5 + bob) * s, 1, 1, COLORS.black, s);
+      px(ctx, x + 10 * s, y + (5 + bob) * s, 1, 1, COLORS.black, s);
+    } else {
+      px(ctx, x + 6 * s, y + (6 + bob) * s, 2, 1, COLORS.black, s);
+      px(ctx, x + 9 * s, y + (6 + bob) * s, 2, 1, COLORS.black, s);
+    }
+  }
+
+  // Jagged iron dagger with periodic glint
+  const glint = (tick % 40) < 6;
+  px(ctx, x + 12 * s, y + (7 + bob) * s, 3, 2, flash ? COLORS.white : (glint ? COLORS.white : "#d7d7ff"), s);
+  px(ctx, x + 14 * s, y + (6 + bob) * s, 2, 1, flash ? COLORS.white : COLORS.gold, s);
 }
 
-function drawSpriteBeastmaster(ctx, x, y, s, tick, player) {
+function drawSpriteArmor(ctx, x, y, s, color, tick, enemy = null) {
   drawShadow(ctx, x, y, s);
-  const bob = Math.sin(tick / 9) > 0 ? 0 : 1;
-  px(ctx, x + 6*s, y + (2+bob)*s, 5, 4, "#ffd59f", s);
-  px(ctx, x + 5*s, y + (1+bob)*s, 7, 2, "#6b3a1f", s);
-  px(ctx, x + 5*s, y + (6+bob)*s, 7, 6, hasRelic(player, "Manto Cinzento") ? "#6b8f6b" : "#4ade80", s);
-  if (hasRelic(player, "Manto Cinzento")) px(ctx, x + 6*s, y + (7+bob)*s, 5, 3, "#b8d7b8", s);
-  px(ctx, x + 3*s, y + (7+bob)*s, 3, 5, "#7a4a2a", s);
-  px(ctx, x + 11*s, y + (7+bob)*s, 3, 5, "#7a4a2a", s);
-  px(ctx, x + 4*s, y + (12+bob)*s, 3, 2, "#30306b", s);
-  px(ctx, x + 10*s, y + (12+bob)*s, 3, 2, "#30306b", s);
-  px(ctx, x + 13*s, y + (5+bob)*s, 2, 2, COLORS.white, s);
-  px(ctx, x + 14*s, y + (4+bob)*s, 1, 1, COLORS.white, s);
-}
-
-function drawSpriteWitch(ctx, x, y, s, tick, player) {
-  drawShadow(ctx, x, y, s);
-  const bob = Math.sin(tick / 10) > 0 ? 0 : 1;
-  const robe = hasRelic(player, "Manto Cinzento") ? "#7a4a7a" : "#b86cff";
-  px(ctx, x + 6*s, y + (2+bob)*s, 5, 4, "#d4a574", s);
-  px(ctx, x + 5*s, y + (1+bob)*s, 7, 2, "#3b0764", s);
-  px(ctx, x + 5*s, y + (6+bob)*s, 7, 7, robe, s);
-  if (hasRelic(player, "Manto Cinzento")) px(ctx, x + 6*s, y + (7+bob)*s, 5, 2, "#c084c0", s);
-  px(ctx, x + 7*s, y + (7+bob)*s, 3, 3, COLORS.gold, s);
-  px(ctx, x + 4*s, y + (8+bob)*s, 2, 4, "#151536", s);
-  px(ctx, x + 11*s, y + (8+bob)*s, 2, 4, "#151536", s);
-  px(ctx, x + 12*s, y + (4+bob)*s, 2, 4, hasRelic(player, "Lâmina Rúnica") ? COLORS.blue : COLORS.green, s);
-  if (hasRelic(player, "Lâmina Rúnica")) px(ctx, x + 14*s, y + (3+bob)*s, 1, 1, COLORS.white, s);
-  px(ctx, x + 4*s, y + (12+bob)*s, 3, 2, "#151536", s);
-  px(ctx, x + 10*s, y + (12+bob)*s, 3, 2, "#151536", s);
-}
-
-function drawSpriteMage(ctx, x, y, s, tick, player, ghostColor = null) {
-  drawShadow(ctx, x, y, s);
-  const bob = Math.sin(tick / 10) > 0 ? 0 : 1;
-  const robe = ghostColor || (hasRelic(player, "Manto Cinzento") ? "#7474a8" : "#30306b");
-  px(ctx, x + 6*s, y + (2+bob)*s, 5, 4, ghostColor || "#ffd59f", s);
-  px(ctx, x + 5*s, y + (1+bob)*s, 7, 3, ghostColor || "#ffd45c", s);
-  px(ctx, x + 5*s, y + (6+bob)*s, 7, 7, robe, s);
-  if (hasRelic(player, "Manto Cinzento") && !ghostColor) px(ctx, x + 6*s, y + (7+bob)*s, 5, 2, "#d7d7ff", s);
-  px(ctx, x + 7*s, y + (7+bob)*s, 3, 5, ghostColor || "#5ca8ff", s);
-  px(ctx, x + 13*s, y + (5+bob)*s, 1, 9, hasRelic(player, "Lâmina Rúnica") && !ghostColor ? COLORS.blue : (ghostColor || "#ffd45c"), s);
-  px(ctx, x + 12*s, y + (4+bob)*s, 3, 2, hasRelic(player, "Lâmina Rúnica") && !ghostColor ? COLORS.blue : (ghostColor || "#5ca8ff"), s);
-  if (hasRelic(player, "Lâmina Rúnica") && !ghostColor) px(ctx, x + 14*s, y + (3+bob)*s, 1, 1, COLORS.white, s);
-  px(ctx, x + 4*s, y + (13+bob)*s, 9, 1, "#151536", s);
-}
-
-function drawSpriteSlime(ctx, x, y, s, color, tick) {
-  drawShadow(ctx, x, y, s);
-  const bob = Math.sin(tick / 11) > 0 ? 0 : 1;
-  px(ctx, x + 4*s, y + (8+bob)*s, 9, 4, color, s);
-  px(ctx, x + 5*s, y + (6+bob)*s, 7, 3, color, s);
-  px(ctx, x + 7*s, y + (7+bob)*s, 1, 1, COLORS.white, s);
-  px(ctx, x + 11*s, y + (10+bob)*s, 1, 1, "#080816", s);
-}
-
-function drawSpriteBat(ctx, x, y, s, color, tick) {
-  const bob = Math.sin(tick / 7) > 0 ? -1 : 1;
-  drawShadow(ctx, x, y, s);
-  px(ctx, x + 6*s, y + (6+bob)*s, 4, 5, color, s);
-  px(ctx, x + 2*s, y + (5+bob)*s, 4, 3, color, s);
-  px(ctx, x + 10*s, y + (5+bob)*s, 4, 3, color, s);
-  px(ctx, x + 1*s, y + (8+bob)*s, 3, 2, "#30306b", s);
-  px(ctx, x + 12*s, y + (8+bob)*s, 3, 2, "#30306b", s);
-  px(ctx, x + 7*s, y + (7+bob)*s, 1, 1, COLORS.red, s);
-  px(ctx, x + 9*s, y + (7+bob)*s, 1, 1, COLORS.red, s);
-}
-
-function drawSpriteGoblin(ctx, x, y, s, color, tick) {
-  drawShadow(ctx, x, y, s);
-  const bob = Math.sin(tick / 9) > 0 ? 0 : 1;
-  px(ctx, x + 5*s, y + (3+bob)*s, 7, 5, color, s);
-  px(ctx, x + 3*s, y + (4+bob)*s, 2, 2, color, s);
-  px(ctx, x + 12*s, y + (4+bob)*s, 2, 2, color, s);
-  px(ctx, x + 6*s, y + (8+bob)*s, 6, 5, "#7a4a2a", s);
-  px(ctx, x + 6*s, y + (5+bob)*s, 1, 1, COLORS.black, s);
-  px(ctx, x + 10*s, y + (5+bob)*s, 1, 1, COLORS.black, s);
-  px(ctx, x + 12*s, y + (8+bob)*s, 3, 1, COLORS.white, s);
-}
-
-function drawSpriteArmor(ctx, x, y, s, color, tick) {
-  drawShadow(ctx, x, y, s);
+  const flash = enemy && enemy.hitPulse > 0 && (enemy.hitPulse % 4) < 2;
   const bob = Math.sin(tick / 12) > 0 ? 0 : 1;
-  px(ctx, x + 5*s, y + (2+bob)*s, 7, 5, color, s);
-  px(ctx, x + 6*s, y + (4+bob)*s, 5, 1, COLORS.black, s);
-  px(ctx, x + 5*s, y + (7+bob)*s, 7, 6, "#7474a8", s);
-  px(ctx, x + 3*s, y + (8+bob)*s, 3, 5, "#a8a8d7", s);
-  px(ctx, x + 11*s, y + (8+bob)*s, 3, 5, "#a8a8d7", s);
-  px(ctx, x + 13*s, y + (5+bob)*s, 1, 9, COLORS.red, s);
+  const drawColor = flash ? COLORS.white : color;
+
+  // Helmet & visor
+  px(ctx, x + 5 * s, y + (2 + bob) * s, 7, 5, drawColor, s);
+  px(ctx, x + 6 * s, y + (4 + bob) * s, 5, 2, COLORS.black, s);
+  // Spectral eye flame flickering inside helmet
+  if (!flash) {
+    const flameColor = (tick % 6) < 3 ? "#5ca8ff" : "#ffd45c";
+    px(ctx, x + 7 * s, y + (4 + bob) * s, 1, 1, flameColor, s);
+    px(ctx, x + 9 * s, y + (4 + bob) * s, 1, 1, flameColor, s);
+  }
+
+  // Breastplate with engraved cross
+  px(ctx, x + 5 * s, y + (7 + bob) * s, 7, 6, flash ? COLORS.white : "#7474a8", s);
+  px(ctx, x + 8 * s, y + (8 + bob) * s, 1, 4, flash ? COLORS.white : COLORS.gold, s);
+  px(ctx, x + 6 * s, y + (9 + bob) * s, 5, 1, flash ? COLORS.white : COLORS.gold, s);
+
+  // Pauldrons
+  px(ctx, x + 3 * s, y + (7 + bob) * s, 3, 5, flash ? COLORS.white : "#a8a8d7", s);
+  px(ctx, x + 11 * s, y + (7 + bob) * s, 3, 5, flash ? COLORS.white : "#a8a8d7", s);
+
+  // Greatsword with steel gleam
+  px(ctx, x + 13 * s, y + (4 + bob) * s, 2, 10, flash ? COLORS.white : "#e2e8f0", s);
+  px(ctx, x + 12 * s, y + (7 + bob) * s, 4, 1, flash ? COLORS.white : COLORS.gold, s);
 }
 
-function drawSpriteSpecter(ctx, x, y, s, color, tick) {
+function drawSpriteSpecter(ctx, x, y, s, color, tick, enemy = null) {
   drawShadow(ctx, x, y, s);
-  const bob = Math.sin(tick / 10) > 0 ? 0 : -2;
-  const alpha = 0.7 + Math.sin(tick / 14) * 0.2;
+  const flash = enemy && enemy.hitPulse > 0 && (enemy.hitPulse % 4) < 2;
+  const bob = Math.round(Math.sin(tick / 9) * 2);
+  const tail1 = Math.round(Math.sin(tick / 7) * 1.5);
+  const tail2 = Math.round(Math.sin(tick / 7 + 1.2) * 2);
+  const alpha = flash ? 1 : (0.72 + Math.sin(tick / 13) * 0.2);
+
   ctx.globalAlpha = alpha;
-  px(ctx, x + 5*s, y + (3+bob)*s, 7, 8, color, s);
-  px(ctx, x + 4*s, y + (5+bob)*s, 3, 5, "#522c78", s);
-  px(ctx, x + 10*s, y + (5+bob)*s, 3, 5, "#522c78", s);
-  px(ctx, x + 6*s, y + (4+bob)*s, 1, 1, COLORS.white, s);
-  px(ctx, x + 10*s, y + (4+bob)*s, 1, 1, COLORS.white, s);
-  px(ctx, x + 7*s, y + (8+bob)*s, 3, 2, COLORS.black, s);
+  const drawColor = flash ? COLORS.white : color;
+  // Ghost head and shoulders
+  px(ctx, x + 5 * s, y + (2 + bob) * s, 7, 6, drawColor, s);
+  px(ctx, x + 4 * s, y + (4 + bob) * s, 3, 5, flash ? COLORS.white : "#522c78", s);
+  px(ctx, x + 10 * s, y + (4 + bob) * s, 3, 5, flash ? COLORS.white : "#522c78", s);
+
+  // Undulating spectral tail
+  px(ctx, x + (5 + tail1) * s, y + (8 + bob) * s, 6, 3, drawColor, s);
+  px(ctx, x + (6 + tail2) * s, y + (11 + bob) * s, 4, 3, flash ? COLORS.white : "#6b21a8", s);
+
+  // Hollow glowing eyes
+  if (!flash) {
+    px(ctx, x + 6 * s, y + (4 + bob) * s, 1, 2, COLORS.white, s);
+    px(ctx, x + 10 * s, y + (4 + bob) * s, 1, 2, COLORS.white, s);
+    px(ctx, x + 7 * s, y + (8 + bob) * s, 3, 2, COLORS.black, s);
+  }
   ctx.globalAlpha = 1;
 }
 
-function drawSpriteGolem(ctx, x, y, s, color, tick) {
+function drawSpriteGolem(ctx, x, y, s, color, tick, enemy = null) {
   drawShadow(ctx, x, y, s);
+  const flash = enemy && enemy.hitPulse > 0 && (enemy.hitPulse % 4) < 2;
   const bob = Math.sin(tick / 16) > 0 ? 0 : 1;
-  px(ctx, x + 3*s, y + (2+bob)*s, 11, 11, color, s);
-  px(ctx, x + 5*s, y + (1+bob)*s, 7, 2, "#92400e", s);
-  px(ctx, x + 4*s, y + (4+bob)*s, 2, 2, COLORS.black, s);
-  px(ctx, x + 10*s, y + (4+bob)*s, 2, 2, COLORS.black, s);
-  px(ctx, x + 6*s, y + (8+bob)*s, 5, 2, "#92400e", s);
-  px(ctx, x + 2*s, y + (6+bob)*s, 3, 6, "#78350f", s);
-  px(ctx, x + 12*s, y + (6+bob)*s, 3, 6, "#78350f", s);
-  px(ctx, x + 5*s, y + (12+bob)*s, 7, 1, "#92400e", s);
+  const drawColor = flash ? COLORS.white : color;
+
+  // Massive rocky torso
+  px(ctx, x + 3 * s, y + (2 + bob) * s, 11, 11, drawColor, s);
+  px(ctx, x + 5 * s, y + (1 + bob) * s, 7, 2, flash ? COLORS.white : "#92400e", s);
+
+  // Moss patches on shoulders
+  if (!flash) {
+    px(ctx, x + 3 * s, y + (2 + bob) * s, 2, 2, "#4ade80", s);
+    px(ctx, x + 11 * s, y + (3 + bob) * s, 2, 2, "#4ade80", s);
+  }
+
+  // Glowing runic power core in chest
+  const corePulse = (tick % 10) < 5 ? COLORS.gold : COLORS.orange;
+  px(ctx, x + 7 * s, y + (6 + bob) * s, 3, 3, flash ? COLORS.white : corePulse, s);
+  px(ctx, x + 8 * s, y + (7 + bob) * s, 1, 1, COLORS.white, s);
+
+  // Stony eyes
+  px(ctx, x + 4 * s, y + (3 + bob) * s, 2, 2, flash ? COLORS.white : COLORS.black, s);
+  px(ctx, x + 11 * s, y + (3 + bob) * s, 2, 2, flash ? COLORS.white : COLORS.black, s);
+
+  // Heavy fists
+  px(ctx, x + 1 * s, y + (6 + bob) * s, 3, 7, flash ? COLORS.white : "#78350f", s);
+  px(ctx, x + 13 * s, y + (6 + bob) * s, 3, 7, flash ? COLORS.white : "#78350f", s);
 }
 
-function drawSpriteWraith(ctx, x, y, s, color, tick) {
+function drawSpriteWraith(ctx, x, y, s, color, tick, enemy = null) {
   drawShadow(ctx, x, y, s);
-  const bob = Math.sin(tick / 9) > 0 ? 0 : -1;
-  px(ctx, x + 5*s, y + (3+bob)*s, 6, 6, color, s);
-  px(ctx, x + 3*s, y + (5+bob)*s, 4, 5, "#7f1d1d", s);
-  px(ctx, x + 9*s, y + (5+bob)*s, 4, 5, "#7f1d1d", s);
-  px(ctx, x + 6*s, y + (5+bob)*s, 1, 1, COLORS.white, s);
-  px(ctx, x + 9*s, y + (5+bob)*s, 1, 1, COLORS.white, s);
-  px(ctx, x + 4*s, y + (9+bob)*s, 8, 3, "#450a0a", s);
-  px(ctx, x + 5*s, y + (11+bob)*s, 2, 1, color, s);
-  px(ctx, x + 9*s, y + (11+bob)*s, 2, 1, color, s);
+  const flash = enemy && enemy.hitPulse > 0 && (enemy.hitPulse % 4) < 2;
+  const bob = Math.round(Math.sin(tick / 8) * 1.5);
+  const ripple = Math.round(Math.sin(tick / 6) * 1.5);
+  const drawColor = flash ? COLORS.white : color;
+
+  // Dark crimson cowl & shroud
+  px(ctx, x + 5 * s, y + (2 + bob) * s, 7, 7, drawColor, s);
+  px(ctx, x + 3 * s, y + (4 + bob) * s, 4, 6, flash ? COLORS.white : "#7f1d1d", s);
+  px(ctx, x + 10 * s, y + (4 + bob) * s, 4, 6, flash ? COLORS.white : "#7f1d1d", s);
+
+  // Billowing ragged shroud skirt
+  px(ctx, x + (4 + ripple) * s, y + (9 + bob) * s, 8, 4, flash ? COLORS.white : "#450a0a", s);
+  px(ctx, x + (5 + ripple) * s, y + (12 + bob) * s, 2, 2, drawColor, s);
+  px(ctx, x + (9 + ripple) * s, y + (12 + bob) * s, 2, 2, drawColor, s);
+
+  // Glowing blood eyes
+  if (!flash) {
+    px(ctx, x + 6 * s, y + (5 + bob) * s, 1, 2, COLORS.white, s);
+    px(ctx, x + 10 * s, y + (5 + bob) * s, 1, 2, COLORS.white, s);
+    px(ctx, x + 7 * s, y + (5 + bob) * s, 1, 1, COLORS.red, s);
+    px(ctx, x + 9 * s, y + (5 + bob) * s, 1, 1, COLORS.red, s);
+  }
 }
 
-function drawSpriteTreant(ctx, x, y, s, color, tick) {
+function drawSpriteTreant(ctx, x, y, s, color, tick, enemy = null) {
   drawShadow(ctx, x, y, s);
-  const bob = Math.sin(tick / 13) > 0 ? 0 : 1;
-  px(ctx, x + 4*s, y + (2+bob)*s, 8, 8, color, s);
-  px(ctx, x + 5*s, y + (1+bob)*s, 6, 2, "#7a4a2a", s);
-  px(ctx, x + 3*s, y + (4+bob)*s, 2, 2, COLORS.black, s);
-  px(ctx, x + 11*s, y + (4+bob)*s, 2, 2, COLORS.black, s);
-  px(ctx, x + 4*s, y + (10+bob)*s, 8, 3, "#7a4a2a", s);
-  px(ctx, x + 2*s, y + (8+bob)*s, 3, 5, "#78350f", s);
-  px(ctx, x + 11*s, y + (8+bob)*s, 3, 5, "#78350f", s);
-  px(ctx, x + 3*s, y + (12+bob)*s, 4, 2, "#78350f", s);
-  px(ctx, x + 9*s, y + (12+bob)*s, 4, 2, "#78350f", s);
+  const flash = enemy && enemy.hitPulse > 0 && (enemy.hitPulse % 4) < 2;
+  const sway = Math.round(Math.sin(tick / 12) * 1.5);
+  const bob = Math.sin(tick / 14) > 0 ? 0 : 1;
+  const drawColor = flash ? COLORS.white : color;
+
+  // Canopy of foliage
+  px(ctx, x + (4 + sway) * s, y + (1 + bob) * s, 9, 5, flash ? COLORS.white : "#22c55e", s);
+  px(ctx, x + (3 + sway) * s, y + (2 + bob) * s, 11, 3, flash ? COLORS.white : "#15803d", s);
+
+  // Ancient trunk & branches
+  px(ctx, x + 5 * s, y + (5 + bob) * s, 7, 7, drawColor, s);
+  px(ctx, x + 2 * s, y + (6 + bob) * s, 3, 5, flash ? COLORS.white : "#78350f", s);
+  px(ctx, x + 12 * s, y + (6 + bob) * s, 3, 5, flash ? COLORS.white : "#78350f", s);
+
+  // Wooden root legs
+  px(ctx, x + 4 * s, y + (12 + bob) * s, 3, 3, flash ? COLORS.white : "#78350f", s);
+  px(ctx, x + 10 * s, y + (12 + bob) * s, 3, 3, flash ? COLORS.white : "#78350f", s);
+
+  // Glowing amber tree eyes
+  if (!flash) {
+    px(ctx, x + 6 * s, y + (7 + bob) * s, 1, 1, COLORS.gold, s);
+    px(ctx, x + 9 * s, y + (7 + bob) * s, 1, 1, COLORS.gold, s);
+  }
 }
 
-function drawSpriteLich(ctx, x, y, s, color, tick) {
+function drawSpriteLich(ctx, x, y, s, color, tick, enemy = null) {
   drawShadow(ctx, x, y, s);
-  const bob = Math.sin(tick / 10) > 0 ? 0 : -1;
-  const alpha = 0.8 + Math.sin(tick / 12) * 0.15;
+  const flash = enemy && enemy.hitPulse > 0 && (enemy.hitPulse % 4) < 2;
+  const bob = Math.round(Math.sin(tick / 9) * 2);
+  const alpha = flash ? 1 : (0.85 + Math.sin(tick / 11) * 0.15);
   ctx.globalAlpha = alpha;
-  px(ctx, x + 5*s, y + (2+bob)*s, 6, 6, color, s);
-  px(ctx, x + 4*s, y + (4+bob)*s, 3, 4, "#4c1d95", s);
-  px(ctx, x + 9*s, y + (4+bob)*s, 3, 4, "#4c1d95", s);
-  px(ctx, x + 6*s, y + (8+bob)*s, 5, 3, "#4c1d95", s);
-  px(ctx, x + 6*s, y + (4+bob)*s, 1, 1, COLORS.white, s);
-  px(ctx, x + 9*s, y + (4+bob)*s, 1, 1, COLORS.white, s);
-  px(ctx, x + 5*s, y + (11+bob)*s, 2, 3, color, s);
-  px(ctx, x + 9*s, y + (11+bob)*s, 2, 3, color, s);
-  px(ctx, x + 7*s, y + (6+bob)*s, 2, 3, COLORS.red, s);
+  const drawColor = flash ? COLORS.white : color;
+
+  // Crowned skull
+  px(ctx, x + 5 * s, y + (3 + bob) * s, 6, 5, flash ? COLORS.white : "#f8fafc", s);
+  px(ctx, x + 4 * s, y + (2 + bob) * s, 8, 2, flash ? COLORS.white : COLORS.gold, s); // golden crown
+  px(ctx, x + 5 * s, y + (1 + bob) * s, 2, 1, flash ? COLORS.white : COLORS.gold, s);
+  px(ctx, x + 9 * s, y + (1 + bob) * s, 2, 1, flash ? COLORS.white : COLORS.gold, s);
+
+  // Royal arcane mantle
+  px(ctx, x + 4 * s, y + (8 + bob) * s, 8, 5, flash ? COLORS.white : "#4c1d95", s);
+  px(ctx, x + 6 * s, y + (8 + bob) * s, 4, 5, drawColor, s);
+
+  // Hollow sockets with crimson flame
+  if (!flash) {
+    px(ctx, x + 6 * s, y + (5 + bob) * s, 1, 2, COLORS.red, s);
+    px(ctx, x + 9 * s, y + (5 + bob) * s, 1, 2, COLORS.red, s);
+  }
+
+  // Floating necrotic soul orb in hand
+  const orbBob = Math.round(Math.cos(tick / 7) * 2);
+  px(ctx, x + 13 * s, y + (7 + bob + orbBob) * s, 3, 3, flash ? COLORS.white : "#a855f7", s);
+  px(ctx, x + 14 * s, y + (8 + bob + orbBob) * s, 1, 1, COLORS.white, s); // core shine
+
   ctx.globalAlpha = 1;
 }
 
-function drawSpriteBoss(ctx, x, y, s, tick) {
-  drawShadow(ctx, x + 0, y + 4*s, s);
+function drawSpriteBoss(ctx, x, y, s, tick, enemy = null) {
+  drawShadow(ctx, x + 0, y + 4 * s, s);
+  const flash = enemy && enemy.hitPulse > 0 && (enemy.hitPulse % 4) < 2;
   const bob = Math.sin(tick / 10) > 0 ? 0 : 1;
-  px(ctx, x + 4*s, y + (3+bob)*s, 10, 8, COLORS.red, s);
-  px(ctx, x + 2*s, y + (5+bob)*s, 3, 6, "#8d1f4f", s);
-  px(ctx, x + 13*s, y + (5+bob)*s, 3, 6, "#8d1f4f", s);
-  px(ctx, x + 5*s, y + (1+bob)*s, 2, 3, COLORS.gold, s);
-  px(ctx, x + 11*s, y + (1+bob)*s, 2, 3, COLORS.gold, s);
-  px(ctx, x + 6*s, y + (6+bob)*s, 2, 2, COLORS.gold, s);
-  px(ctx, x + 11*s, y + (6+bob)*s, 2, 2, COLORS.gold, s);
-  px(ctx, x + 7*s, y + (10+bob)*s, 5, 2, COLORS.black, s);
-  px(ctx, x + 5*s, y + (12+bob)*s, 4, 3, "#522c78", s);
-  px(ctx, x + 10*s, y + (12+bob)*s, 4, 3, "#522c78", s);
+  const isEnraged = enemy && (enemy.enraged || enemy.phase === 2);
+  const heartRate = isEnraged ? 4 : 8;
+  const heartBeat = (tick % heartRate) < 2;
+
+  // Towering Horns with Gold Tips
+  px(ctx, x + 3 * s, y + (0 + bob) * s, 2, 4, flash ? COLORS.white : COLORS.gold, s);
+  px(ctx, x + 13 * s, y + (0 + bob) * s, 2, 4, flash ? COLORS.white : COLORS.gold, s);
+  px(ctx, x + 4 * s, y + (2 + bob) * s, 3, 3, flash ? COLORS.white : "#581c87", s);
+  px(ctx, x + 11 * s, y + (2 + bob) * s, 3, 3, flash ? COLORS.white : "#581c87", s);
+
+  // Armored Torso
+  px(ctx, x + 4 * s, y + (4 + bob) * s, 10, 8, flash ? COLORS.white : COLORS.red, s);
+  px(ctx, x + 2 * s, y + (6 + bob) * s, 3, 6, flash ? COLORS.white : "#8d1f4f", s);
+  px(ctx, x + 13 * s, y + (6 + bob) * s, 3, 6, flash ? COLORS.white : "#8d1f4f", s);
+
+  // Demonic Eye Slits
+  if (!flash) {
+    px(ctx, x + 6 * s, y + (5 + bob) * s, 2, 2, COLORS.gold, s);
+    px(ctx, x + 10 * s, y + (5 + bob) * s, 2, 2, COLORS.gold, s);
+    px(ctx, x + 7 * s, y + (5 + bob) * s, 1, 1, COLORS.red, s);
+    px(ctx, x + 10 * s, y + (5 + bob) * s, 1, 1, COLORS.red, s);
+  }
+
+  // Pulsing Demonic Core (The Red Core Heart)
+  const coreColor = flash ? COLORS.white : (heartBeat ? "#ffd45c" : "#ff2244");
+  px(ctx, x + 7 * s, y + (8 + bob) * s, 4, 3, coreColor, s);
+  px(ctx, x + 8 * s, y + (9 + bob) * s, 2, 1, COLORS.white, s); // hot center
+
+  // Billowing Crimson Cape
+  const capeWave = Math.round(Math.sin(tick / 7) * 1.5);
+  px(ctx, x + (4 + capeWave) * s, y + (12 + bob) * s, 4, 4, flash ? COLORS.white : "#522c78", s);
+  px(ctx, x + (10 + capeWave) * s, y + (12 + bob) * s, 4, 4, flash ? COLORS.white : "#522c78", s);
+
+  // Crackling Aura in Phase 2 / Enraged
+  if (isEnraged && !flash) {
+    const sparkX = x + Math.round((Math.sin(tick * 0.4) * 8 + 8) * s);
+    const sparkY = y + Math.round((Math.cos(tick * 0.3) * 6 + 4) * s);
+    px(ctx, sparkX, sparkY, 2, 2, COLORS.gold, s);
+  }
 }
 
 function drawStatusBadges(ctx, entity, x, y) {
@@ -1273,17 +1634,32 @@ function drawStatusBadges(ctx, entity, x, y) {
 }
 
 function drawSpriteByKind(ctx, enemy, x, y, s, color, tick) {
-  if (enemy.boss) { drawSpriteBoss(ctx, x, y, s, tick); return; }
+  if (enemy.boss) { drawSpriteBoss(ctx, x, y, s, tick, enemy); return; }
+
+  const faceLeft = (typeof player !== "undefined" && player && enemy.x > player.x) || enemy.dir === "left";
+  if (faceLeft && enemy.kind !== "slime") {
+    ctx.save();
+    const cx = x + 8 * s;
+    ctx.translate(cx, y);
+    ctx.scale(-1, 1);
+    ctx.translate(-cx, -y);
+  }
+
   switch (enemy.kind) {
-    case "slime":   drawSpriteSlime(ctx, x, y, s, color, tick); break;
-    case "bat":     drawSpriteBat(ctx, x, y, s, color, tick); break;
-    case "goblin":  drawSpriteGoblin(ctx, x, y, s, color, tick); break;
-    case "armor":   drawSpriteArmor(ctx, x, y, s, color, tick); break;
-    case "specter": drawSpriteSpecter(ctx, x, y, s, color, tick); break;
-    case "treant":  drawSpriteTreant(ctx, x, y, s, color, tick); break;
-    case "golem":   drawSpriteGolem(ctx, x, y, s, color, tick); break;
-    case "lich":    drawSpriteLich(ctx, x, y, s, color, tick); break;
-    case "wraith":  drawSpriteWraith(ctx, x, y, s, color, tick); break;
+    case "slime":   drawSpriteSlime(ctx, x, y, s, color, tick, enemy); break;
+    case "bat":     drawSpriteBat(ctx, x, y, s, color, tick, enemy); break;
+    case "goblin":  drawSpriteGoblin(ctx, x, y, s, color, tick, enemy); break;
+    case "armor":   drawSpriteArmor(ctx, x, y, s, color, tick, enemy); break;
+    case "specter": drawSpriteSpecter(ctx, x, y, s, color, tick, enemy); break;
+    case "treant":  drawSpriteTreant(ctx, x, y, s, color, tick, enemy); break;
+    case "golem":   drawSpriteGolem(ctx, x, y, s, color, tick, enemy); break;
+    case "lich":    drawSpriteLich(ctx, x, y, s, color, tick, enemy); break;
+    case "wraith":  drawSpriteWraith(ctx, x, y, s, color, tick, enemy); break;
+    default:        drawSpriteGoblin(ctx, x, y, s, color, tick, enemy); break;
+  }
+
+  if (faceLeft && enemy.kind !== "slime") {
+    ctx.restore();
   }
 }
 
@@ -1334,16 +1710,20 @@ function drawPlayer(ctx, player, cameraRx, cameraRy, tick) {
   const pxPos = sx + hitJolt + lungeX;
   const pyPos = sy + stepLift + lungeY;
   px(ctx, pxPos + 2 * s, pyPos + 1 * s, 12, 14, "#060614", s);
-  if (player.classKey === "warrior") drawSpriteWarrior(ctx, pxPos, pyPos, s, tick, player);
-  if (player.classKey === "rogue") drawSpriteRogue(ctx, pxPos, pyPos, s, tick, player);
-  if (player.classKey === "mage") drawSpriteMage(ctx, pxPos, pyPos, s, tick, player);
-  if (player.classKey === "beastmaster") drawSpriteBeastmaster(ctx, pxPos, pyPos, s, tick, player);
-  if (player.classKey === "witch") drawSpriteWitch(ctx, pxPos, pyPos, s, tick, player);
+  drawHeroSpriteByClass(ctx, player.classKey, pxPos, pyPos, s, tick, player, {
+    facing: player.dir,
+    isMoving: player.movePulse > 0,
+    isAttacking: player.attackPulse > 0,
+    isGuarding: false,
+    hitPulse: player.hitPulse
+  });
   drawFacingMarker(ctx, sx, sy, player.dir);
 }
 
 function drawPotion(ctx, x, y, s, tick) {
   const bob = Math.sin(tick / 12) > 0 ? 0 : 1;
+  const bubble = (tick % 24);
+  const bubbleY = Math.floor(bubble / 4); // 0 to 5 rising
   ctx.globalAlpha = 0.35 + Math.sin(tick / 9) * 0.12;
   ctx.fillStyle = "rgba(255, 90, 90, 0.65)";
   ctx.fillRect(x + 4 * s, y + (5 + bob) * s, 9 * s, 9 * s);
@@ -1352,56 +1732,104 @@ function drawPotion(ctx, x, y, s, tick) {
   ctx.fillRect(x + 5 * s, y + 13 * s, 7 * s, 2 * s);
   ctx.fillStyle = COLORS.black;
   ctx.fillRect(x + 4 * s, y + (5 + bob) * s, 9 * s, 8 * s);
+  // Glass bottle neck and cork
   ctx.fillStyle = COLORS.white;
   ctx.fillRect(x + 6 * s, y + (3 + bob) * s, 4 * s, 2 * s);
+  ctx.fillStyle = "#7a4a2a"; // cork
+  ctx.fillRect(x + 7 * s, y + (2 + bob) * s, 2 * s, 2 * s);
+  // Red elixir liquid
   ctx.fillStyle = COLORS.red;
   ctx.fillRect(x + 5 * s, y + (6 + bob) * s, 7 * s, 6 * s);
-  ctx.fillStyle = "#ff9da0";
-  ctx.fillRect(x + 7 * s, y + (7 + bob) * s, 2 * s, 2 * s);
+  // Rising bubbling spark
+  ctx.fillStyle = "#ffb0b3";
+  ctx.fillRect(x + (6 + (bubble % 3)) * s, y + (11 - bubbleY + bob) * s, 1 * s, 1 * s);
+  // Glass specular highlight
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(x + 6 * s, y + (6 + bob) * s, 1 * s, 3 * s);
+  ctx.fillRect(x + 7 * s, y + (6 + bob) * s, 1 * s, 1 * s);
   ctx.fillStyle = COLORS.black;
   ctx.fillRect(x + 5 * s, y + (12 + bob) * s, 7 * s, 1 * s);
 }
 
 function drawChest(ctx, x, y, tick) {
   const bob = Math.sin(tick / 18) > 0 ? 0 : 1;
-  ctx.fillStyle = "rgba(255, 212, 92, 0.22)";
-  ctx.fillRect(x + 3, y + 7 + bob, 18, 12);
+  const glint = (tick + Math.floor(x * 3)) % 75; // periodic gold glint
+  // Drop shadow
   ctx.fillStyle = COLORS.shadow;
-  ctx.fillRect(x + 5, y + 18, 15, 3);
-  ctx.fillStyle = "#5a2f24";
-  ctx.fillRect(x + 5, y + 9 + bob, 15, 9);
+  ctx.fillRect(x + 3, y + 17, 18, 3);
+  // Chest body (warm mahogany wood)
+  ctx.fillStyle = "#4a2518";
+  ctx.fillRect(x + 4, y + 8 + bob, 16, 10);
+  ctx.fillStyle = "#6b3724";
+  ctx.fillRect(x + 5, y + 9 + bob, 14, 8);
+  // Iron reinforced corners and rivets
+  ctx.fillStyle = "#2d2d52";
+  ctx.fillRect(x + 4, y + 8 + bob, 2, 10);
+  ctx.fillRect(x + 18, y + 8 + bob, 2, 10);
+  // Gold trims and lid edge
   ctx.fillStyle = COLORS.gold;
-  ctx.fillRect(x + 5, y + 9 + bob, 15, 3);
-  ctx.fillRect(x + 11, y + 12 + bob, 3, 4);
+  ctx.fillRect(x + 4, y + 8 + bob, 16, 2);
+  ctx.fillRect(x + 4, y + 12 + bob, 16, 2);
+  // Keyhole latch
+  ctx.fillStyle = COLORS.gold;
+  ctx.fillRect(x + 10, y + 11 + bob, 4, 4);
   ctx.fillStyle = COLORS.black;
-  ctx.fillRect(x + 5, y + 13 + bob, 15, 1);
+  ctx.fillRect(x + 11, y + 12 + bob, 2, 2);
+  // Sparkling star glint on the lock
+  if (glint < 8) {
+    const sSize = glint < 4 ? glint : (7 - glint);
+    ctx.fillStyle = COLORS.white;
+    ctx.fillRect(x + 12 - sSize, y + 12 + bob, sSize * 2 + 1, 1);
+    ctx.fillRect(x + 12, y + 12 + bob - sSize, 1, sSize * 2 + 1);
+  }
 }
 
 function drawShrine(ctx, x, y, tick) {
-  const pulse = 0.4 + Math.sin(tick / 10) * 0.18;
-  ctx.globalAlpha = pulse;
-  ctx.fillStyle = COLORS.purple;
-  ctx.fillRect(x + 4, y + 3, 16, 18);
-  ctx.globalAlpha = 1;
+  const pulse = 0.5 + Math.sin(tick / 10) * 0.2;
+  const floatBob = Math.sin(tick / 12) * 1.5;
+  // Altar shadow
   ctx.fillStyle = COLORS.shadow;
-  ctx.fillRect(x + 5, y + 19, 14, 3);
-  ctx.fillStyle = "#2b1747";
-  ctx.fillRect(x + 7, y + 8, 10, 11);
+  ctx.fillRect(x + 3, y + 18, 18, 3);
+  // Stepped stone base
+  ctx.fillStyle = "#1e1e3b";
+  ctx.fillRect(x + 3, y + 14, 18, 4);
+  ctx.fillStyle = "#2e2e5a";
+  ctx.fillRect(x + 5, y + 10, 14, 4);
+  ctx.fillStyle = "#4a4a85";
+  ctx.fillRect(x + 6, y + 10, 12, 1);
+  // Floating runic crystal diamond
   ctx.fillStyle = COLORS.purple;
-  ctx.fillRect(x + 10, y + 4, 4, 11);
-  ctx.fillStyle = COLORS.gold;
-  ctx.fillRect(x + 11, y + 6, 2, 2);
+  ctx.fillRect(x + 10, y + 3 + floatBob, 4, 6);
+  ctx.fillRect(x + 9, y + 4 + floatBob, 6, 4);
+  ctx.fillStyle = "#e0aaff";
+  ctx.fillRect(x + 11, y + 4 + floatBob, 2, 2); // crystal core highlight
+  // Orbiting magical sparks
+  for (let i = 0; i < 3; i++) {
+    const angle = (tick / 14) + (i * Math.PI * 2 / 3);
+    const ox = Math.cos(angle) * 7;
+    const oy = Math.sin(angle) * 3;
+    ctx.fillStyle = i === 0 ? COLORS.gold : COLORS.purple;
+    ctx.globalAlpha = 0.8;
+    ctx.fillRect(Math.round(x + 11 + ox), Math.round(y + 6 + floatBob + oy), 2, 2);
+  }
+  ctx.globalAlpha = 1;
 }
 
 function drawTrap(ctx, x, y, tick) {
-  const glint = Math.sin(tick / 8) > 0;
-  ctx.fillStyle = "#111126";
-  ctx.fillRect(x + 4, y + 8, 16, 10);
-  ctx.fillStyle = "#3a3a66";
-  ctx.fillRect(x + 5, y + 9, 14, 8);
+  const glint = (tick % 45) < 6;
+  // Recessed floor cavity
+  ctx.fillStyle = "#0c0c1e";
+  ctx.fillRect(x + 3, y + 6, 18, 12);
+  ctx.fillStyle = "#1b1b36";
+  ctx.fillRect(x + 4, y + 7, 16, 10);
+  // Spike grates / steel teeth
   ctx.fillStyle = glint ? COLORS.red : "#7474a8";
-  ctx.fillRect(x + 7, y + 11, 10, 1);
-  ctx.fillRect(x + 9, y + 14, 6, 1);
+  for (let sx = 0; sx < 4; sx++) {
+    ctx.fillRect(x + 5 + sx * 4, y + 9, 2, 6);
+    ctx.fillStyle = glint ? COLORS.white : "#a8a8d7";
+    ctx.fillRect(x + 5 + sx * 4, y + 8, 2, 1); // sharpened tip
+    ctx.fillStyle = glint ? COLORS.red : "#7474a8";
+  }
 }
 
 function drawMentor(ctx, x, y, tick) {
@@ -4435,13 +4863,16 @@ function drawActionHero(ctx, tick) {
   drawShadow(ctx, x - 4 * s, y, s);
   const lunge = st.atkAnim > 0 ? 2 * s : 0;
   const offX = st.facing === "left" ? -lunge : st.facing === "right" ? lunge : 0;
-  const offY = st.facing === "up" ? -lunge : st.facing === "down" ? lunge : 0;
-  px(ctx, x + 2 * s + offX, y + (1 + bob) * s, 8, 8, "#060614", s);
-  px(ctx, x + 3 * s + offX, y + (2 + bob) * s, 6, 6, c, s);
-  px(ctx, x + 4 * s + offX, y + (1 + bob) * s, 4, 2, "#f7d9a0", s);
-  if (st.facing === "right") { px(ctx, x + 8 * s + offX, y + (2 + bob) * s, 1, 1, COLORS.black, s); }
-  else if (st.facing === "left") { px(ctx, x + 4 * s + offX, y + (2 + bob) * s, 1, 1, COLORS.black, s); }
-  else { px(ctx, x + 6 * s + offX, y + (2 + bob) * s, 2, 1, COLORS.black, s); }
+  const heroX = x + offX - 3 * s;
+  const heroY = y + offY - 4 * s;
+  px(ctx, heroX + 2 * s, heroY + 1 * s, 12, 14, "#060614", s);
+  drawHeroSpriteByClass(ctx, player.classKey, heroX, heroY, s, tick, player, {
+    facing: st.facing,
+    isMoving: (st.vx !== 0 || st.vy !== 0),
+    isAttacking: st.atkAnim > 0,
+    isGuarding: !!st.guarding,
+    hitPulse: player.hitPulse
+  });
   if (st.atkAnim > 0) {
     const isFin = st.comboStep >= CONFIG.ACTION_COMBO_STEPS - 1;
     const slashColor = isFin ? "#ff8a3c" : "#ffd45c";
@@ -6771,32 +7202,40 @@ function drawExit() {
   const sy = (exitTile.y - camera.ry) * CONFIG.TILE_SIZE;
   if (sx < -CONFIG.TILE_SIZE || sy < -CONFIG.TILE_SIZE || sx > CONFIG.CANVAS_W || sy > CONFIG.CANVAS_H) return;
 
+  const TILE = CONFIG.TILE_SIZE;
+  // Floor base
   ctx.fillStyle = COLORS.floorDark;
-  ctx.fillRect(sx, sy, CONFIG.TILE_SIZE, CONFIG.TILE_SIZE);
+  ctx.fillRect(sx, sy, TILE, TILE);
   ctx.fillStyle = (exitTile.x + exitTile.y) % 2 ? COLORS.floorMid : "#28284e";
-  ctx.fillRect(sx + 1, sy + 1, CONFIG.TILE_SIZE - 2, CONFIG.TILE_SIZE - 2);
-  ctx.fillStyle = "rgba(255, 255, 255, 0.035)";
-  ctx.fillRect(sx + 2, sy + 2, CONFIG.TILE_SIZE - 4, 1);
-  ctx.fillStyle = "rgba(0, 0, 0, 0.22)";
-  ctx.fillRect(sx + 2, sy + CONFIG.TILE_SIZE - 3, CONFIG.TILE_SIZE - 4, 1);
+  ctx.fillRect(sx + 1, sy + 1, TILE - 2, TILE - 2);
 
-  const pulse = Math.sin(tick / CONFIG.EXIT_PULSE_DIVISOR);
-  ctx.globalAlpha = CONFIG.EXIT_ALPHA;
-  ctx.fillStyle = bossDefeated ? "rgba(105, 224, 129, 0.35)" : "rgba(255, 90, 90, 0.38)";
-  ctx.fillRect(sx + 1, sy + 1, CONFIG.TILE_SIZE - 2, CONFIG.TILE_SIZE - 2);
+  // Stepped stone staircase descending into abyss
+  ctx.fillStyle = "#070714"; // deep abyss at bottom of stairs
+  ctx.fillRect(sx + 4, sy + 4, TILE - 8, TILE - 8);
+
+  // 3-dimensional stone steps descending
+  ctx.fillStyle = "#4a4a85"; ctx.fillRect(sx + 4, sy + 4, TILE - 8, 2);
+  ctx.fillStyle = "#2d2d55"; ctx.fillRect(sx + 4, sy + 6, TILE - 8, 3);
+  ctx.fillStyle = "#3e3e70"; ctx.fillRect(sx + 5, sy + 9, TILE - 10, 2);
+  ctx.fillStyle = "#232345"; ctx.fillRect(sx + 5, sy + 11, TILE - 10, 3);
+  ctx.fillStyle = "#343460"; ctx.fillRect(sx + 6, sy + 14, TILE - 12, 2);
+  ctx.fillStyle = "#161630"; ctx.fillRect(sx + 6, sy + 16, TILE - 12, 3);
+
+  // Runic portal mist rising
+  const pulse = Math.sin(tick / 8) * 0.2;
+  const mistAlpha = 0.35 + pulse;
+  ctx.globalAlpha = mistAlpha;
+  ctx.fillStyle = bossDefeated ? COLORS.green : COLORS.gold;
+  // Portal runic arch / glow
+  ctx.fillRect(sx + 8, sy + 5, TILE - 16, 2);
+  ctx.fillRect(sx + 7, sy + 7, 2, 6);
+  ctx.fillRect(sx + TILE - 9, sy + 7, 2, 6);
+
+  // Ethereal rising particles from the stairs
+  const pTick = (tick * 0.5) % 14;
+  ctx.fillStyle = bossDefeated ? "#a8f5b8" : "#fff1a8";
+  ctx.fillRect(sx + 10 + (Math.sin(tick / 5) * 3), sy + 16 - pTick, 2, 2);
   ctx.globalAlpha = 1;
-  ctx.fillStyle = COLORS.black;
-  ctx.fillRect(sx + 4, sy + 5, 16, 16);
-  ctx.fillStyle = bossDefeated ? COLORS.green : COLORS.red;
-  ctx.fillRect(sx + 5, sy + 5, 14, 14);
-  ctx.fillStyle = COLORS.gold;
-  ctx.fillRect(sx + 8, sy + 2 + pulse, 8, 4);
-  ctx.fillRect(sx + 9, sy + 10, 6, 8);
-  ctx.fillStyle = COLORS.white;
-  ctx.fillRect(sx + 11, sy + 12, 3, 3);
-  ctx.fillStyle = bossDefeated ? COLORS.white : COLORS.purple;
-  ctx.fillRect(sx + 3, sy + 3, 2, 2);
-  ctx.fillRect(sx + 19, sy + 18, 2, 2);
 }
 
 function drawEnemiesOnMap() {

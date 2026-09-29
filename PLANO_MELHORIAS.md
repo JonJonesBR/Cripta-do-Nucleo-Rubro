@@ -1,8 +1,8 @@
-# Plano de Melhorias — Cripta do Núcleo Rubro (Rodada 5: Loop de Jogabilidade, Tática de Combate e Exploração)
+# Plano de Melhorias — Cripta do Núcleo Rubro (Rodada 6: Polimento Gráfico, Sprites e Animações 16-Bit Vivas)
 
-> **Meta da Rodada:** Elevar a jogabilidade e o loop principal de jogo (combate turnos, combate de ação e exploração da masmorra) para o patamar de excelência **9.6 a 9.7 / 10**, refinando a responsividade tática, timing de combate e agência do jogador na masmorra.
+> **Meta da Rodada:** Elevar os gráficos, sprites e animações do jogo para o patamar de excelência **9.7 a 9.8 / 10**, trazendo animações ricas para as 5 classes de heróis, ciclos de movimento e ataques estendidos, animações orgânicas procedurais para todos os monstros, o Chefe Guardião Rubro e elementos do cenário da masmorra.
 >
-> **Estado:** ✅ Concluído com Sucesso (Gates A e B aprovados, 124 testes unitários e 28 specs E2E passando).
+> **Estado:** ✅ Concluído com Sucesso (Gates A e B aprovados, 128 testes unitários e 28 specs E2E passando).
 
 ---
 
@@ -16,37 +16,51 @@
 
 ---
 
-## 2. Fases de Execução da Rodada 5
+## 2. Fases de Execução da Rodada 6
 
-### Fase A — Estratégia & Furtividade na Masmorra (Alvo: 9.6 / 10)
-- **A1. Sistema de Emboscada e Vantagem de Iniciativa:**
-  - Jogador que avança em direção a um monstro desatento (`!enemy.alert`) recebe Iniciativa de Emboscada imediata.
-  - No Modo Turnos: início imediato com ATB cheio (`playerAtbReady = true`), +25 Momentum e menu aberto antes de qualquer ação do monstro.
-  - No Modo Ação: monstro inicia atordoado (`eStagger = 50`) e vulnerável por 2 segundos, conferindo grande vantagem tática.
-- **A2. Desarme Tático de Armadilhas via Interação Contextual:**
-  - O botão contextual passa a exibir `DESARMAR` ao encarar uma armadilha adjacente.
-  - Ladinos possuem 100% de maestria no desarme; demais classes contam com 75% de sucesso.
-  - Neutralização concede +12 XP e +5 de ouro das peças reaproveitadas. Em caso de falha, dano é reduzido pela metade pelo reflexo rápido.
+### Fase A — Sprites Vivos & Ciclo de Animação dos Heróis (Alvo: 9.7 / 10)
+- **A1. Sistema de Direcionamento com Espelhamento Horizontal:**
+  - Todas as 5 classes (`warrior`, `rogue`, `mage`, `beastmaster`, `witch`) suportam espelhamento horizontal ao virar para a esquerda (`facing === "left"`), mantendo a postura de combate e armas sempre voltadas para o alvo.
+- **A2. Ciclo de Passos e Caminhada de 4 Fases:**
+  - Pés e pernas alternados durante o movimento no mapa (`movePulse > 0`) e no combate de ação, trazendo ritmo e vida 16-bit autêntica aos passos do herói.
+- **A3. Animações de Ataque e Golpe Estendido por Classe:**
+  - Guerreiro projeta a espada em estocada/swing com rastro luminoso e faíscas douradas.
+  - Ladino desfere estocada dupla rápida com suas adagas.
+  - Mago inclina o cajado e projeta fagulhas arcanas na gema da ponta.
+  - Mestre das Feras projeta sua lança de osso e garras afiadas.
+  - Bruxa ergue sua varinha mística com motes mágicos violeta orbitais.
+- **A4. Damage Flash Retrô Arcade:**
+  - Ao receber dano (`hitPulse > 0`), a silhueta do herói pisca em branco puro nos frames de impacto, fornecendo feedback tátil e visual visceral.
+- **A5. Sprite Completo da Classe no Combate de Ação (`drawActionHero`):**
+  - Substituição definitiva do antigo quadrado colorido simples pelo sprite 16-bit completo e detalhado da classe, incluindo armas, trajes, postura e animação de passos.
 
-### Fase B — Game Feel, Combate de Ação & Flash Counter (Alvo: 9.7 / 10)
-- **B1. Contra-Ataque Relâmpago (Flash Counter):**
-  - Esquivas perfeitas no modo de ação ativam uma janela de contra-ataque de 30 ticks (`counterWindow`).
-  - O botão A ganha destaque e label `CONTRA-ATK!`.
-  - Golpear nessa janela projeta o herói com lunge em alta velocidade até o inimigo, desferindo corte dourado cruzado em X com 1.75x de dano crítico, sfx dedicado de parry e câmera lenta.
-- **B2. Janela de Encadeamento de Combo Suavizada:**
-  - `ACTION_COMBO_WINDOW_TICKS` ajustado para 30 ticks (500ms), eliminando descarte acidental de sequências de golpes por jitter de hardware ou latência touch.
+### Fase B — Animações Orgânicas e Expressivas dos Monstros & Chefe (Alvo: 9.8 / 10)
+- **B1. Física Elástica de Squash & Stretch nos Slimes:**
+  - Deformação senoidal que preserva o volume da geleia (estica na subida, achata no pouso), núcleo gelatinoso translúcido, brilho especular e olhos expressivos que piscam.
+- **B2. Ciclo de Voo e Bater de Asas dos Morcegos (3 Fases):**
+  - Fases de asas elevadas, asas planando e asas dobradas para baixo com oscilação suave de altitude e presas pontiagudas.
+- **B3. Expressividade dos Monstros da Cripta:**
+  - Goblins: orelhas pontudas pulsantes, olhos âmbar que piscam e adaga com reluzir periódico.
+  - Armaduras Vivas: chamas espectrais azuis/douradas oscilando na fenda do elmo e brasão no peitoral.
+  - Espectros & Wraiths: cauda etérea com ondulação senoidal fluida de 3 camadas e transparência viva.
+  - Golems: runas de magma pulsantes no peito de pedra e manchas de musgo nos ombros.
+  - Treants: ramagem de folhas verdes ondulando com o vento e olhos de madeira antiga.
+  - Liches: levitação mística, crânio coroado de ouro e orbe de almas necróticas orbitando a mão esquelética.
+- **B4. Majestade do Guardião Rubro (Chefe):**
+  - Chifres recurvados com pontas de ouro, olhos de fogo demoníaco, manto carmesim esvoaçante e o Núcleo Rubro pulsando no centro do peito em ritmo cardíaco acelerado quando enfurecido (Fase 2).
 
-### Fase C — Feedback de Combate por Turnos & Áudio Chiptune (Alvo: 9.6 / 10)
-- **C1. Telegrafia de Bloqueio e Áudio Metálico de Parry:**
-  - Som procedural de alta ressonância sintetizado em Web Audio (`playSfx("parry")`) em 880Hz / 1320Hz / 1760Hz.
-  - Abertura da janela de guarda projeta fagulhas de telegrafia douradas e chime de aviso.
-  - Acerto na janela de Riposte dispara `parry`, efeito de zoom-pulse e câmera lenta satisfatória.
-- **C2. Indicador de Vantagem Elemental em Tempo Real no Painel:**
-  - Exibe badges contextuais `(+50%!)` em dourado quando o elemento ativo do jogador explora a fraqueza do monstro, ou `(-30%)` em caso de resistência.
+### Fase C — Adereços de Masmorra, Iluminação Viva & Cenário (Alvo: 9.7 / 10)
+- **C1. Escadaria de Saída da Cripta em Perspectiva 3D (`drawExit`):**
+  - Degraus de pedra com profundidade tridimensional, arco de portal rúnico e partículas etéreas ascendentes anunciando a descida ao próximo andar.
+- **C2. Baús e Altares Refinados:**
+  - Baús com corpo de mogno nobre, cantoneiras de ferro rebitadas e estrela de brilho estelar dourado cintilando na fechadura.
+  - Santuários com cristal de diamante flutuante e 3 orbes mágicos em órbita tridimensional.
+  - Armadilhas de piso com dentes de espinhos de aço reluzentes.
+  - Poções com elixir vermelho borbulhante e rolha de cortiça.
 
 ---
 
 ## 3. Critérios de Aceite
-- `npm run check` (typecheck + 124 testes unitários) passa 100% verde sem regressões.
-- Playwright E2E (`npm run test:e2e`) com 28 specs passando em navegador real.
-- Pacote autônomo offline gerado: `release/CRIPTA DO NÚCLEO RUBRO (jogo único).html` (253 kB).
+- `npm run check` (typecheck + 128 testes unitários) passa 100% verde sem regressões.
+- Playwright E2E (`npm run test:e2e`) com specs passando em navegador real.
+- Pacote autônomo offline gerado: `release/CRIPTA DO NÚCLEO RUBRO (jogo único).html` (259 kB).

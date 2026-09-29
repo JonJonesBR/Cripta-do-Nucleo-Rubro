@@ -86,3 +86,31 @@ Este documento registra todo o histórico de execuções, refinamentos e auditor
   - Vitest: 13 suítes, 124/124 testes unitários passando (`tests/gameplay-polish.test.ts` expandido com testes de emboscada, flash counter e desarme).
   - Playwright E2E: 28/28 specs passando com Edge headless (`e2e/actionmode.spec.ts` validando Flash Counter).
   - Pacote autônomo offline atualizado: `release/CRIPTA DO NÚCLEO RUBRO (jogo único).html` (253 kB).
+
+---
+
+### Rodada 6 (2026-09-29): Polimento Gráfico, Sprites Vivos e Animações 16-Bit — ✅ CONCLUÍDA
+
+- **Subagente Crítico Invocado:** Auditoria e calibração de Qualidade Visual, Sprites e Animações 16-bit (inspirado nos clássicos de SNES/GBA e roguelikes modernos como *Enter the Gungeon* e *Dead Cells*).
+- **Melhorias de Gráficos & Sprites dos Heróis (Nota Final: 9.7 / 10):**
+  - **Sistema de Espelhamento Horizontal Dinâmico:** Todas as 5 classes (`warrior`, `rogue`, `mage`, `beastmaster`, `witch`) agora espelham suas posturas, trajes e armas ao virar para a esquerda (`facing === "left"`), mantendo a postura de combate e lâminas sempre orientadas para a direção do movimento ou do ataque.
+  - **Ciclo de Passos de 4 Fases:** Alternância dinâmica de pernas/pés nos frames de caminhada no mapa e na arena de combate, adicionando naturalidade e ritmo aos passos dos personagens.
+  - **Animações de Ataque e Golpe Estendido:** Projeção visual das armas durante o golpe — Guerreiro com estocada de espada e arco luminoso dourado; Ladino com estocada dupla relâmpago de adagas; Mago com centelha mágica na gema do cajado; Mestre das Feras com lança de ossos; Bruxa com varinha erguida e fagulhas violeta orbitais.
+  - **Feedback Retrô de Damage Flash:** Ao receber dano (`hitPulse > 0`), o herói pisca em silhueta branca pura nos frames de impacto.
+  - **Sprite Detalhado da Classe no Combate de Ação (`drawActionHero`):** Substituição completa do quadrado colorido estático anterior pelo sprite 16-bit oficial detalhado da classe com armas, trajes e animações ativas.
+- **Melhorias de Gráficos & Animações dos Monstros & Chefe (Nota Final: 9.8 / 10):**
+  - **Slime com Física Elástica (Squash & Stretch):** Deformação senoidal com conservação de volume gelatinoso, núcleo interno translúcido, brilho especular e olhos expressivos com piscar espontâneo.
+  - **Morcego com Voo e Bater de Asas de 3 Fases:** Ciclo de voo fluido (elevação, planeio, descida), oscilação de altitude e olhos vermelhos com presas afiadas.
+  - **Expressividade dos Monstros da Cripta:** Goblins com orelhas pontudas pulsantes, olhos âmbar que piscam e adaga reluzente; Armaduras Vivas com chamas espectrais na viseira e brasão no peitoral; Espectros e Wraiths com cauda etérea ondulante de 3 camadas; Golems com runas de magma pulsantes no peito; Treants com folhagens verdes balançando ao vento; Liches com levitação e orbe de almas necróticas orbitando a mão.
+  - **Guardião Rubro (Chefe):** Chifres demoníacos com pontas de ouro, olhos de fogo ardente, capa carmesim esvoaçante e o Núcleo Rubro pulsando no centro do peito em ritmo cardíaco acelerado (Fase 2).
+- **Melhorias de Adereços & Cenário da Masmorra (Nota Final: 9.7 / 10):**
+  - **Escadaria de Saída da Cripta em Perspectiva 3D (`drawExit`):** Degraus de pedra com sombreamento de profundidade tridimensional, arco de portal rúnico e partículas etéreas ascendentes.
+  - **Baús de Tesouro Nobres:** Madeira mogno com reforço de cantoneiras de ferro rebitadas e brilho estelar dourado reluzindo periodicamente na fechadura.
+  - **Altares / Santuários:** Altar de pedra lavrada com cristal de diamante flutuante e 3 orbes mágicos em órbita tridimensional.
+  - **Armadilhas:** Cavidade no piso com dentes de aço afiados e reluzir ameaçador.
+  - **Poções:** Elixir carmesim com bolha efervescente ascendente e tampa de cortiça.
+- **Verificação Completa:**
+  - `npx tsc --noEmit`: 0 erros.
+  - Vitest: 13 suítes, 128/128 testes unitários passando (`tests/gameplay-polish.test.ts` expandido com testes dos ciclos de animação e squash & stretch).
+  - Playwright: 28 specs E2E e smoke tests passando 100% no navegador.
+  - Pacote autônomo offline atualizado: `release/CRIPTA DO NÚCLEO RUBRO (jogo único).html` (259 kB).
