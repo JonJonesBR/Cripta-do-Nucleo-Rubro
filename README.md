@@ -33,8 +33,9 @@
   - **Mago:** Canhão de vidro com feitiços explosivos em área e queimadura ígnea.
   - **Domador:** Mestre das feras e sinergia de combate selvagem.
   - **Bruxa:** Magia caótica com drenagem de vida e aflições arcanas.
-- **🐾 Captura e Equipe de Criaturas:** Capture monstros durante a descida e monte um time de até 3 aliados para lutar ao seu lado.
-- **✨ Relíquias, Talentos e Afixos:** Dezenas de itens místicos, árvore de talentos por andar e monstros de elite com afixos perigosos.
+- **🐾 Captura e Equipe de Criaturas:** Capture monstros nos DOIS modos de combate (menu nos turnos, botão contextual `◆ CAPT` na ação). A chance soma bônus de classe (Domador), relíquia e alvo debilitado — e falhar enfurece o monstro. Cada criatura mantém seu elemento de ataque e uma passiva de papel (regeneração, esquiva, blindagem, sifão): o time é uma escolha de build.
+- **✨ Relíquias, Talentos e Afixos:** Dezenas de itens místicos, árvore de talentos por andar e monstros de elite com afixos perigosos — incluindo relíquias que mudam decisão (carregar o próximo golpe após defender, capturar em vez de matar, explorar fraqueza elemental).
+- **♾️ Modo Infinito com Anomalias:** Além do Guardião Rubro, cada andar sorteia uma anomalia (Horda, Fúria, Elite, Predadores, Sentinela), os temas de terreno ciclam e a fenda está sempre aberta — descer cedo ou explorar é decisão.
 - **🎶 Áudio Procedural Chiptune:** Trilha sonora polifônica procedural sintetizada em tempo real com percussão estruturada (kick, snare, hi-hats) e SFX dinâmicos via Web Audio API.
 - **♿ Acessibilidade Total:** Modos para daltonismo (Protanopia, Deuteranopia, Tritanopia), alto contraste, redução de flash, escala de interface e modo para uma mão no celular.
 - **📱 100% Autônomo e Responsivo:** D-pad virtual com deadzone e suporte analógico/diagonal, jogável tanto no computador (teclado/gamepad) quanto no celular (touch/gestos).
@@ -48,6 +49,7 @@
 | **Movimento** | Setas / `WASD` | D-Pad virtual / Deslizar o dedo (Swipe) |
 | **Atacar / Confirmar** | `Z` / `Enter` | Botão virtual **A** |
 | **Habilidade / Poção** | `X` / `Espaço` | Botão virtual **B** |
+| **Capturar (modo ação)** | `C` | Botão contextual **◆ CAPT** |
 | **Pausar / Menu** | `Esc` | Botão **Ⅱ** (Topo) |
 | **Inspecionar / Usar / Quebrar / Desarmar** | Pisar / `Z` | Botão contextual **A** (`DESCER` / `USAR` / `QUEBRAR` / `DESARMAR`) |
 | **Troca Rápida de Lutadores** | `1` / `2` / `3` / `4` | Menu de comandos / Roster |
