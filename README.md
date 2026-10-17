@@ -21,12 +21,15 @@
   - **Heróis Expressivos:** Espelhamento horizontal de postura e armas (`facing`), ciclo de passos de 4 fases, golpes específicos por classe e feedback de impacto com *white damage flash*.
   - **Tochas Vivas e Iluminação Ambiente:** Arandelas de ferro nas paredes com chamas de 4 fases procedurais e fagulhas de brasas incandescentes subindo ao teto.
   - **Monstros com Vida Própria:** Deformação elástica (*squash & stretch*) com conservação de volume em Slimes, ciclo de voo de 3 fases em Morcegos, orelhas e adagas em Goblins, chamas espectrais em Armaduras Vivas e o Núcleo Rubro pulsando no peito do Guardião.
+  - **Terreno Reativo ao Corpo:** Pisar na água levanta um aro de respingo com gotas; a lava devolve vapor a cada passo, e criaturas de fogo soltam brasas ao andar sobre ela — o chão responde a quem pisa nele.
   - **Cenário e Adereços Detalhados:** Escadaria de saída em perspectiva 3D com portal rúnico, baús de mogno com brilho dourado estelar, altares com cristais e orbes de mana em levitação.
 - **✨ Game Feel e Feedback Visual Primoroso:**
   - **Barra de Vida Fantasma (Ghost HP):** Rastro âmbar amortecido que desliza suavemente ao causar dano, tanto no HUD de turnos quanto na barra de combate de ação.
   - **Decalques de Batalha no Chão:** Marcas de sangue procedurais e fagulhas que marcam o piso da cripta durante os confrontos e desaparecem gradualmente.
   - **Telegrafia de Área de Efeito (Boss AoE):** Ondas de choque do Guardião Rubro com anéis concêntricos tracejados expansivos, permitindo fuga por raio ou contra-ataque de Esquiva Perfeita.
   - **Floating Combat Text com Pop Elástico:** Números com amortecimento senoidal e sombra de alto contraste.
+  - **Câmera de Trauma com Torque:** Tremor direcional contínuo que gira sutilmente a moldura em críticos e impactos pesados, com viés direcional que expira — impacto forte sacode, impacto leve apenas pulsa.
+  - **Faíscas Arcanas de Conjuração:** Toda habilidade sai com espirais na cor da classe antes do dano aparecer — dá para ler "conjurou magia" antes do número.
 - **🛡️ 5 Classes Exclusivas:**
   - **Guerreiro:** Tanque disciplinado de alta armadura e bloqueio devastador.
   - **Ladino:** Crítico evasivo, velocidade, desarme mestre de armadilhas e sangramento furtivo.
@@ -34,6 +37,7 @@
   - **Domador:** Mestre das feras e sinergia de combate selvagem.
   - **Bruxa:** Magia caótica com drenagem de vida e aflições arcanas.
 - **🐾 Captura e Equipe de Criaturas:** Capture monstros nos DOIS modos de combate (menu nos turnos, botão contextual `◆ CAPT` na ação). A chance soma bônus de classe (Domador), relíquia e alvo debilitado — e falhar enfurece o monstro. Cada criatura mantém seu elemento de ataque e uma passiva de papel (regeneração, esquiva, blindagem, sifão): o time é uma escolha de build.
+- **🧠 IA de Combate Tática:** Inimigos feridos recuam NA DIREÇÃO do grupo gritando por socorro — o grito é um ruído real do sistema de Barulho que convoca reforços; atordoados ficam sem voz, e elemento casa com terreno (fogo teme água, gelo teme lava, slime usa água como atalho).
 - **✨ Relíquias, Talentos e Afixos:** Dezenas de itens místicos, árvore de talentos por andar e monstros de elite com afixos perigosos — incluindo relíquias que mudam decisão (carregar o próximo golpe após defender, capturar em vez de matar, explorar fraqueza elemental).
 - **♾️ Modo Infinito com Anomalias:** Além do Guardião Rubro, cada andar sorteia uma anomalia (Horda, Fúria, Elite, Predadores, Sentinela), os temas de terreno ciclam e a fenda está sempre aberta — descer cedo ou explorar é decisão.
 - **🎶 Áudio Procedural Chiptune:** Trilha sonora polifônica procedural sintetizada em tempo real com percussão estruturada (kick, snare, hi-hats) e SFX dinâmicos via Web Audio API.
